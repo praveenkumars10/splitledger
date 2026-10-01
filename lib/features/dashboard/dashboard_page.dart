@@ -17,6 +17,8 @@ import '../split/split_summary_page.dart';
 import '../transactions/add_transaction_page.dart';
 import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
+import '../../core/services/upi_whatsapp_service.dart';
+import '../transactions/quick_add_bottom_sheet.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -265,6 +267,52 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         '${s.from} owes ${s.to} ${_currencyFormat.format(s.amount)}',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                       ),
+                      const SizedBox(height: 8),
+                      // Action buttons: UPI Pay & WhatsApp Reminder
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                foregroundColor: Colors.deepPurple,
+                                side: const BorderSide(color: Colors.deepPurple),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () {
+                                UpiWhatsAppService.payViaUpi(
+                                  context: context,
+                                  payeeName: s.to,
+                                  amount: s.amount,
+                                  note: 'SplitLedger: ${s.from} to ${s.to}',
+                                );
+                              },
+                              icon: const Icon(Icons.account_balance, size: 14),
+                              label: const Text('UPI Pay', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 6),
+                                foregroundColor: const Color(0xFF25D366),
+                                side: const BorderSide(color: Color(0xFF25D366)),
+                                visualDensity: VisualDensity.compact,
+                              ),
+                              onPressed: () {
+                                UpiWhatsAppService.sendWhatsAppReminder(
+                                  context: context,
+                                  recipientName: s.from,
+                                  amount: s.amount,
+                                );
+                              },
+                              icon: const Icon(Icons.chat, size: 14),
+                              label: const Text('WhatsApp', style: TextStyle(fontSize: 11)),
+                            ),
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 6),
                       SizedBox(
                         width: double.infinity,
@@ -290,7 +338,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             try {
                               await ref.read(transactionRepositoryProvider).addTransaction(householdId, tx);
                               messenger.showSnackBar(
-                                SnackBar(content: Text('Recorded settlement of ${_currencyFormat.format(s.amount)}!')),
+                                SnackBar(
+                                  content: Text('Recorded settlement of ${_currencyFormat.format(s.amount)}!'),
+                                  backgroundColor: Colors.green,
+                                ),
                               );
                             } catch (e) {
                               messenger.showSnackBar(
@@ -582,6 +633,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: Text(shortName(currentUser?.displayName ?? currentUser?.email ?? 'Dashboard')),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.bolt, color: Colors.amberAccent),
+            tooltip: '1-Tap Quick Expense',
+            onPressed: () => QuickAddBottomSheet.show(context),
+          ),
           PopupMenuButton<String>(
             tooltip: 'Filter Options',
             child: const Padding(
@@ -1071,13 +1127,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.received)));
                         },
-                        child: const Text('You Received', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: const Text('You Received', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Quick Add Center Button
+                    InkWell(
+                      onTap: () => QuickAddBottomSheet.show(context),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade700,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.bolt, color: Colors.white, size: 18),
+                            SizedBox(width: 2),
+                            Text('Quick', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1086,13 +1162,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.paid)));
                         },
-                        child: const Text('You Paid', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        child: const Text('You Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                       ),
                     ),
                   ],

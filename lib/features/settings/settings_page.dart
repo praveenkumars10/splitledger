@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:split_ledger/features/auth/auth_controller.dart';
+import '../../core/localization/language_controller.dart';
+import '../../core/theme/theme_controller.dart';
 import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
 import '../household/household_repository.dart';
@@ -14,7 +16,7 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
-    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9');
+    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final controller = TextEditingController(
       text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
     );
@@ -44,7 +46,7 @@ class SettingsPage extends ConsumerWidget {
               decoration: const InputDecoration(
                 labelText: 'Wallet Amount',
                 hintText: 'e.g. 2000',
-                prefixText: '\u20B9 ',
+                prefixText: '₹ ',
                 border: OutlineInputBorder(),
               ),
             ),
@@ -121,7 +123,9 @@ class SettingsPage extends ConsumerWidget {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
-    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9');
+    final themeSettings = ref.watch(themeControllerProvider);
+    final language = ref.watch(languageControllerProvider);
+    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
     return Scaffold(
       appBar: AppBar(
@@ -130,6 +134,107 @@ class SettingsPage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
+          // Theme & Appearance
+          Row(
+            children: [
+              Icon(Icons.palette_outlined, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Appearance & Theme',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Theme Mode Selector
+          SegmentedButton<ThemeMode>(
+            segments: const [
+              ButtonSegment(
+                value: ThemeMode.system,
+                icon: Icon(Icons.brightness_auto, size: 16),
+                label: Text('System'),
+              ),
+              ButtonSegment(
+                value: ThemeMode.light,
+                icon: Icon(Icons.light_mode, size: 16),
+                label: Text('Light'),
+              ),
+              ButtonSegment(
+                value: ThemeMode.dark,
+                icon: Icon(Icons.dark_mode, size: 16),
+                label: Text('Dark'),
+              ),
+            ],
+            selected: {themeSettings.themeMode},
+            onSelectionChanged: (set) {
+              ref.read(themeControllerProvider.notifier).setThemeMode(set.first);
+            },
+          ),
+          const SizedBox(height: 16),
+          // Accent Color Selector
+          const Text('Theme Accent Color', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: AppThemeColor.values.map((colorItem) {
+                final isSelected = themeSettings.accentColor == colorItem;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8.0),
+                  child: FilterChip(
+                    avatar: CircleAvatar(
+                      backgroundColor: colorItem.color,
+                      radius: 8,
+                    ),
+                    label: Text(colorItem.label),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        ref.read(themeControllerProvider.notifier).setAccentColor(colorItem);
+                      }
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+          const Divider(height: 32),
+
+          // Language Setting
+          Row(
+            children: [
+              Icon(Icons.translate, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Language / மொழி',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SegmentedButton<AppLanguage>(
+            segments: AppLanguage.values.map((lang) {
+              return ButtonSegment(
+                value: lang,
+                label: Text('${lang.flag} ${lang.label}'),
+              );
+            }).toList(),
+            selected: {language},
+            onSelectionChanged: (set) {
+              ref.read(languageControllerProvider.notifier).setLanguage(set.first);
+            },
+          ),
+          const Divider(height: 32),
+
+          // Personal Wallet
           const Text(
             'Personal Wallet',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple),
@@ -143,7 +248,6 @@ class SettingsPage extends ConsumerWidget {
               walletAmount > 0 ? currencyFormat.format(walletAmount) : 'Not configured (Tap to set)',
               style: TextStyle(
                 fontWeight: walletAmount > 0 ? FontWeight.bold : FontWeight.normal,
-                color: walletAmount > 0 ? Colors.black87 : Colors.grey,
               ),
             ),
             trailing: const Icon(Icons.edit, color: Colors.deepPurple),
@@ -154,6 +258,8 @@ class SettingsPage extends ConsumerWidget {
             },
           ),
           const Divider(height: 32),
+
+          // Household Settings
           const Text(
             'Household Settings',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
@@ -165,7 +271,7 @@ class SettingsPage extends ConsumerWidget {
               title: const Text('Your Invite Code', style: TextStyle(color: Colors.grey)),
               subtitle: Text(
                 household.inviteCode,
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4, color: Colors.black),
+                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
               ),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -259,7 +365,8 @@ class SettingsPage extends ConsumerWidget {
                     '• Add "You Received" when you get money back.\n'
                     '• Use Wallet to set your budget / cash balance.\n'
                     '• Your Balance tracks your remaining wallet balance.\n'
-                    '• Share your invite code so your partner can join.',
+                    '• Share your invite code so your partner can join.\n'
+                    '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.',
                   ),
                   actions: [
                     TextButton(
@@ -336,7 +443,7 @@ class SettingsPage extends ConsumerWidget {
                             if (user != null) {
                               await ref.read(householdRepositoryProvider).leaveHousehold(household.id, user.uid);
                               scaffoldMessenger.showSnackBar(
-                                const SnackBar(content: Text('Leaved household')),
+                                const SnackBar(content: Text('Left household')),
                               );
                               navigator.popUntil((route) => route.isFirst);
                             }

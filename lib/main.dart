@@ -10,6 +10,8 @@ import 'features/main/main_page.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'core/theme/theme_controller.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -20,16 +22,29 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeSettings = ref.watch(themeControllerProvider);
+
     return MaterialApp(
       title: 'SplitLedger',
       debugShowCheckedModeBanner: false,
+      themeMode: themeSettings.themeMode,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: themeSettings.accentColor.color,
+          brightness: Brightness.light,
+        ),
+        useMaterial3: true,
+      ),
+      darkTheme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: themeSettings.accentColor.color,
+          brightness: Brightness.dark,
+        ),
         useMaterial3: true,
       ),
       home: const AuthGate(),
