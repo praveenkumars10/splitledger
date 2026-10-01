@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "659770534100",
+    "project_id": "splitledger-2026-prave",
+    "storage_bucket": "splitledger-2026-prave.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:659770534100:android:39a10f2f3ddcb4beb1b341",
+        "android_client_info": {
+          "package_name": "com.splitledger.split_ledger"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSO0xUMgkv57WwWoTWO9mTBlBvJbyjn_c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
