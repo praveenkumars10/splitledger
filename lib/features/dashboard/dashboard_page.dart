@@ -21,6 +21,7 @@ import '../../core/services/upi_whatsapp_service.dart';
 import '../transactions/quick_add_bottom_sheet.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
+import '../../core/preferences/app_preferences.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -483,6 +484,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final language = ref.watch(languageControllerProvider);
+    final preferences = ref.watch(appPreferencesProvider);
 
     String partnerName = 'Partner';
     int totalMembers = 2;
@@ -637,6 +639,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         title: Text(shortName(currentUser?.displayName ?? currentUser?.email ?? 'Dashboard')),
         actions: [
           IconButton(
+            icon: Icon(
+              preferences.isPrivacyMode ? Icons.visibility_off : Icons.visibility,
+              color: Colors.white,
+            ),
+            tooltip: preferences.isPrivacyMode ? 'Show Balances' : 'Hide Balances (Privacy)',
+            onPressed: () => ref.read(appPreferencesProvider.notifier).togglePrivacyMode(),
+          ),
+          IconButton(
             icon: const Icon(Icons.bolt, color: Colors.amberAccent),
             tooltip: '1-Tap Quick Expense',
             onPressed: () => QuickAddBottomSheet.show(context),
@@ -644,11 +654,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           PopupMenuButton<String>(
             tooltip: 'Filter Options',
             child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
+              padding: EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
                   Icon(Icons.filter_list),
-                  SizedBox(width: 8),
+                  SizedBox(width: 4),
                   Text('Options'),
                 ],
               ),
@@ -711,7 +721,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(150),
+          preferredSize: Size.fromHeight(_isMonthlyFilter ? 145 : 95),
           child: Column(
             children: [
               // Month selector row
@@ -743,6 +753,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ],
                   ),
                 ),
+
               // Time filter chips
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -1126,64 +1137,69 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 child: Row(
                   children: [
                     Expanded(
+                      flex: 4,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade600,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.received)));
                         },
-                        child: Text(
-                          AppStrings.tr(language, 'you_received'),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            AppStrings.tr(language, 'you_received'),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     // Quick Add Center Button
                     InkWell(
                       onTap: () => QuickAddBottomSheet.show(context),
                       borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
                         decoration: BoxDecoration(
                           color: Colors.amber.shade700,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
                             const Icon(Icons.bolt, color: Colors.white, size: 16),
                             const SizedBox(width: 2),
                             Text(
                               AppStrings.tr(language, 'quick_expense'),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: 6),
                     Expanded(
+                      flex: 4,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade600,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.paid)));
                         },
-                        child: Text(
-                          AppStrings.tr(language, 'you_paid'),
-                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            AppStrings.tr(language, 'you_paid'),
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
                         ),
                       ),
                     ),
@@ -1213,12 +1229,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Text(
-                                      AppStrings.tr(language, 'wallet'),
-                                      style: const TextStyle(
-                                        color: Colors.deepPurple,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.bold,
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text(
+                                        AppStrings.tr(language, 'wallet'),
+                                        style: const TextStyle(
+                                          color: Colors.deepPurple,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                        ),
                                       ),
                                     ),
                                     const SizedBox(width: 2),
@@ -1226,15 +1245,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 2),
-                                Text(
-                                  walletAmount > 0 ? _currencyFormat.format(walletAmount) : 'Set \u20B9',
-                                  style: TextStyle(
-                                    color: walletAmount > 0 ? Colors.deepPurple.shade700 : Colors.deepPurple.shade300,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    preferences.isPrivacyMode
+                                        ? '₹••••'
+                                        : (walletAmount > 0 ? _currencyFormat.format(walletAmount) : 'Set \u20B9'),
+                                    style: TextStyle(
+                                      color: walletAmount > 0 ? Colors.deepPurple.shade700 : Colors.deepPurple.shade300,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -1249,13 +1271,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(AppStrings.tr(language, 'total_received'), style: const TextStyle(color: Colors.green, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  AppStrings.tr(language, 'total_received'),
+                                  style: const TextStyle(color: Colors.green, fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                               const SizedBox(height: 2),
-                              Text(
-                                _currencyFormat.format(totalReceived),
-                                style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  preferences.isPrivacyMode ? '₹••••' : _currencyFormat.format(totalReceived),
+                                  style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
                               ),
                             ],
                           ),
@@ -1269,13 +1299,21 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(AppStrings.tr(language, 'total_paid'), style: const TextStyle(color: Colors.red, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  AppStrings.tr(language, 'total_paid'),
+                                  style: const TextStyle(color: Colors.red, fontSize: 10),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
                               const SizedBox(height: 2),
-                              Text(
-                                _currencyFormat.format(totalPaid),
-                                style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: Text(
+                                  preferences.isPrivacyMode ? '₹••••' : _currencyFormat.format(totalPaid),
+                                  style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 11),
+                                ),
                               ),
                             ],
                           ),
@@ -1295,29 +1333,40 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(AppStrings.tr(language, 'your_balance'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                const SizedBox(height: 2),
-                                Text(
-                                  walletAmount > 0
-                                      ? _currencyFormat.format(remainingBalance)
-                                      : (net.abs() < 0.01 ? 'No due' : '\u20B9${net.abs().toStringAsFixed(0)}'),
-                                  style: TextStyle(
-                                    color: balanceColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 11,
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    AppStrings.tr(language, 'your_balance'),
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                                    textAlign: TextAlign.center,
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                Text(
-                                  balanceSubtext,
-                                  style: TextStyle(
-                                    color: balanceColor,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w600,
+                                const SizedBox(height: 2),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    preferences.isPrivacyMode
+                                        ? '₹••••'
+                                        : (walletAmount > 0
+                                            ? _currencyFormat.format(remainingBalance)
+                                            : (net.abs() < 0.01 ? 'No due' : '\u20B9${net.abs().toStringAsFixed(0)}')),
+                                    style: TextStyle(
+                                      color: balanceColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
                                   ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
+                                    balanceSubtext,
+                                    style: TextStyle(
+                                      color: balanceColor,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -1328,6 +1377,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   ),
                 ),
               ),
+
             ],
           );
         },

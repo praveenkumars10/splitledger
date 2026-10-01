@@ -125,22 +125,26 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final members = household?.members ?? [];
 
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-        top: 20,
-        left: 20,
-        right: 20,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return SafeArea(
+      top: false,
+      bottom: true,
+      child: Container(
+        padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom + 20,
+          top: 20,
+          left: 20,
+          right: 20,
+        ),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+
             // Handle bar
             Center(
               child: Container(
@@ -309,6 +313,8 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
           ],
         ),
       ),
-    );
-  }
+    ),
+  );
 }
+}
+

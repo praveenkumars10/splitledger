@@ -210,7 +210,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               .fold(0.0, (sum, t) => sum + t.amount);
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(left: 16, right: 16, top: 16, bottom: 90),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -279,19 +279,26 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Member metric cards
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: split.balances.map((b) {
-                    final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
-                    return SizedBox(
-                      width: (MediaQuery.of(context).size.width - 32 - 12) / 2,
-                      child: _buildMetricCard('${b.name} Paid', b.paid, color),
-                    );
-                  }).toList(),
-                ),
+                // Member metric cards with LayoutBuilder
+                if (split.balances.isNotEmpty)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: split.balances.map((b) {
+                          final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
+                          return SizedBox(
+                            width: cardWidth,
+                            child: _buildMetricCard('${b.name} Paid', b.paid, color),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 20),
+
 
                 // Category Breakdown Card
                 CategoryBreakdownCard(transactions: periodTransactions),

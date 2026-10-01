@@ -113,7 +113,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
               .fold(0.0, (sum, t) => sum + t.amount);
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
+            padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 90.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -184,23 +184,30 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                 ),
                 const SizedBox(height: 16),
 
-                // Breakdown cards
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: split.balances.map((b) {
-                    final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
-                    return SizedBox(
-                      width: (MediaQuery.of(context).size.width - 32 - 12) / 2,
-                      child: _buildBreakdownCard(
-                        title: '${b.name} Paid',
-                        amount: b.paid,
-                        color: color,
-                      ),
-                    );
-                  }).toList(),
-                ),
+                // Breakdown cards with LayoutBuilder
+                if (split.balances.isNotEmpty)
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final cardWidth = (constraints.maxWidth - 12) / 2;
+                      return Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: split.balances.map((b) {
+                          final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
+                          return SizedBox(
+                            width: cardWidth,
+                            child: _buildBreakdownCard(
+                              title: '${b.name} Paid',
+                              amount: b.paid,
+                              color: color,
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
                 const SizedBox(height: 24),
+
 
                 // Settlement Section
                 Row(

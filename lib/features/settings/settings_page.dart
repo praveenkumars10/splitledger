@@ -5,7 +5,10 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:split_ledger/features/auth/auth_controller.dart';
+import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
+import '../../core/preferences/app_preferences.dart';
+import '../../core/services/backup_restore_service.dart';
 import '../../core/theme/theme_controller.dart';
 import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
@@ -118,18 +121,118 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
+  void _showRestoreDialog(BuildContext context, WidgetRef ref, String householdId, String currentUid) {
+    final textController = TextEditingController();
+    bool replaceExisting = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.restore, color: Colors.deepPurple),
+              SizedBox(width: 8),
+              Text('Restore Backup'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Paste your SplitLedger JSON backup content below:',
+                  style: TextStyle(fontSize: 13, color: Colors.black87),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: textController,
+                  maxLines: 8,
+                  decoration: const InputDecoration(
+                    hintText: '{\n  "version": 1,\n  "appName": "SplitLedger",\n  "transactions": [...]\n}',
+                    border: OutlineInputBorder(),
+                    contentPadding: EdgeInsets.all(12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.paste, size: 16),
+                  label: const Text('Paste from Clipboard'),
+                  onPressed: () async {
+                    final data = await Clipboard.getData('text/plain');
+                    if (data?.text != null) {
+                      setState(() {
+                        textController.text = data!.text!;
+                      });
+                    }
+                  },
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Replace existing transactions', style: TextStyle(fontSize: 13)),
+                  subtitle: const Text('If checked, current transactions will be cleared first', style: TextStyle(fontSize: 11)),
+                  value: replaceExisting,
+                  onChanged: (val) => setState(() => replaceExisting = val ?? false),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final jsonString = textController.text.trim();
+                if (jsonString.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please paste backup JSON content')),
+                  );
+                  return;
+                }
+
+                Navigator.pop(context);
+                final messenger = ScaffoldMessenger.of(context);
+                final result = await BackupRestoreService.restoreFromJson(
+                  ref: ref,
+                  householdId: householdId,
+                  currentUid: currentUid,
+                  rawJson: jsonString,
+                  replaceExisting: replaceExisting,
+                );
+
+                messenger.showSnackBar(
+                  SnackBar(
+                    content: Text(result.message),
+                    backgroundColor: result.success ? Colors.green : Colors.red,
+                  ),
+                );
+              },
+              child: const Text('Restore Now'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final transactions = ref.watch(currentTransactionsProvider).asData?.value ?? [];
     final themeSettings = ref.watch(themeControllerProvider);
     final language = ref.watch(languageControllerProvider);
+    final preferences = ref.watch(appPreferencesProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: Text(AppStrings.tr(language, 'settings_tab')),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16.0),
@@ -140,7 +243,7 @@ class SettingsPage extends ConsumerWidget {
               Icon(Icons.palette_outlined, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 8),
               Text(
-                'Appearance & Theme',
+                AppStrings.tr(language, 'appearance_theme'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -210,7 +313,7 @@ class SettingsPage extends ConsumerWidget {
               Icon(Icons.translate, color: Theme.of(context).colorScheme.primary),
               const SizedBox(width: 8),
               Text(
-                'Language / மொழி',
+                AppStrings.tr(language, 'language'),
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -230,6 +333,112 @@ class SettingsPage extends ConsumerWidget {
             selected: {language},
             onSelectionChanged: (set) {
               ref.read(languageControllerProvider.notifier).setLanguage(set.first);
+            },
+          ),
+          const Divider(height: 32),
+
+          // Privacy Mode
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            secondary: Icon(
+              preferences.isPrivacyMode ? Icons.visibility_off : Icons.visibility,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            title: Text(AppStrings.tr(language, 'privacy_mode'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(AppStrings.tr(language, 'privacy_mode_sub')),
+            value: preferences.isPrivacyMode,
+            onChanged: (val) {
+              ref.read(appPreferencesProvider.notifier).togglePrivacyMode();
+            },
+          ),
+          const Divider(height: 32),
+
+          // Storage & Data Backup
+          Row(
+            children: [
+              Icon(Icons.storage_outlined, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(
+                AppStrings.tr(language, 'storage_backup_title'),
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Storage Mode Segmented Switch
+          Text(AppStrings.tr(language, 'storage_mode_desc'), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          const SizedBox(height: 10),
+          SegmentedButton<StorageMode>(
+            segments: [
+              ButtonSegment(
+                value: StorageMode.cloud,
+                icon: const Icon(Icons.cloud_sync, size: 16),
+                label: Text(AppStrings.tr(language, 'storage_cloud')),
+              ),
+              ButtonSegment(
+                value: StorageMode.local,
+                icon: const Icon(Icons.phone_android, size: 16),
+                label: Text(AppStrings.tr(language, 'storage_local')),
+              ),
+            ],
+            selected: {preferences.storageMode},
+            onSelectionChanged: (set) {
+              ref.read(appPreferencesProvider.notifier).setStorageMode(set.first);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Storage set to: ${set.first.title}')),
+              );
+            },
+          ),
+          const SizedBox(height: 16),
+
+          // Backup & Export JSON Tile
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+              child: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+            ),
+            title: Text(AppStrings.tr(language, 'backup_export'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(AppStrings.tr(language, 'backup_export_sub')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () async {
+              if (household != null) {
+                final file = await BackupRestoreService.exportBackup(
+                  context: context,
+                  transactions: transactions,
+                  walletAmount: walletAmount,
+                  householdName: household.name,
+                  members: household.members,
+                );
+                if (file != null && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Backup ready and shared!'), backgroundColor: Colors.green),
+                  );
+                }
+              }
+            },
+          ),
+
+          // Restore JSON Tile
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.purple.shade50, shape: BoxShape.circle),
+              child: const Icon(Icons.cloud_download_outlined, color: Colors.deepPurple),
+            ),
+            title: Text(AppStrings.tr(language, 'restore_import'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(AppStrings.tr(language, 'restore_import_sub')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              if (household != null && currentUser != null) {
+                _showRestoreDialog(context, ref, household.id, currentUser.uid);
+              }
             },
           ),
           const Divider(height: 32),
@@ -366,7 +575,8 @@ class SettingsPage extends ConsumerWidget {
                     '• Use Wallet to set your budget / cash balance.\n'
                     '• Your Balance tracks your remaining wallet balance.\n'
                     '• Share your invite code so your partner can join.\n'
-                    '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.',
+                    '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.\n'
+                    '• Use Data Storage & Backup to export and restore your ledger anytime.',
                   ),
                   actions: [
                     TextButton(
@@ -460,8 +670,17 @@ class SettingsPage extends ConsumerWidget {
                 );
               },
             ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              'SplitLedger v1.0.0 • Legend Edition 🚀',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+            ),
+          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
   }
 }
+

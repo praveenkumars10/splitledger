@@ -121,9 +121,74 @@ class TransactionModel {
       'createdAt': Timestamp.fromDate(createdAt),
       'splitPercentages': splitPercentages,
       'splitShares': splitShares,
-      'recurrence': recurrence.toString().split('.').last,
+      'recurrence': recurrence.name,
       'recurrenceEndDate': recurrenceEndDate != null ? Timestamp.fromDate(recurrenceEndDate!) : null,
       'nextOccurrence': nextOccurrence != null ? Timestamp.fromDate(nextOccurrence!) : null,
     };
   }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'amount': amount,
+      'category': category,
+      'paidByUid': paidByUid,
+      'paidByName': paidByName,
+      'note': note,
+      'receiptUrl': receiptUrl,
+      'date': date.toIso8601String(),
+      'dueDate': dueDate?.toIso8601String(),
+      'type': type == TransactionType.received ? 'received' : 'paid',
+      'createdAt': createdAt.toIso8601String(),
+      'splitPercentages': splitPercentages,
+      'splitShares': splitShares,
+      'recurrence': recurrence.name,
+      'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
+      'nextOccurrence': nextOccurrence?.toIso8601String(),
+    };
+  }
+
+  factory TransactionModel.fromJson(Map<String, dynamic> json) {
+    DateTime parseDate(dynamic val) {
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val) ?? DateTime.now();
+      return DateTime.now();
+    }
+
+    DateTime? parseNullableDate(dynamic val) {
+      if (val == null) return null;
+      if (val is Timestamp) return val.toDate();
+      if (val is String) return DateTime.tryParse(val);
+      return null;
+    }
+
+    return TransactionModel(
+      id: json['id'] ?? '',
+      amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
+      category: json['category'] ?? 'general',
+      paidByUid: json['paidByUid'] ?? '',
+      paidByName: json['paidByName'] ?? '',
+      note: json['note'],
+      receiptUrl: json['receiptUrl'],
+      date: parseDate(json['date']),
+      dueDate: parseNullableDate(json['dueDate']),
+      type: json['type'] == 'received' ? TransactionType.received : TransactionType.paid,
+      createdAt: parseDate(json['createdAt']),
+      splitPercentages: (json['splitPercentages'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, (v as num).toDouble()),
+      ),
+      splitShares: (json['splitShares'] as Map<String, dynamic>?)?.map(
+        (k, v) => MapEntry(k, (v as num).toDouble()),
+      ),
+      recurrence: json['recurrence'] != null
+          ? RecurrenceInterval.values.firstWhere(
+              (e) => e.name == json['recurrence'],
+              orElse: () => RecurrenceInterval.none,
+            )
+          : RecurrenceInterval.none,
+      recurrenceEndDate: parseNullableDate(json['recurrenceEndDate']),
+      nextOccurrence: parseNullableDate(json['nextOccurrence']),
+    );
+  }
 }
+

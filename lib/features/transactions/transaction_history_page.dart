@@ -290,7 +290,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                   ..sort((a, b) => b.date.compareTo(a.date));
 
                 return ListView.separated(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 90),
                   itemCount: sorted.length,
                   separatorBuilder: (context, index) => const Divider(height: 1),
                   itemBuilder: (context, index) {

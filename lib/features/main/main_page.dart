@@ -115,6 +115,7 @@ class _MainPageState extends ConsumerState<MainPage> {
   @override
   Widget build(BuildContext context) {
     final language = ref.watch(languageControllerProvider);
+    final theme = Theme.of(context);
 
     return Scaffold(
       body: IndexedStack(
@@ -122,41 +123,106 @@ class _MainPageState extends ConsumerState<MainPage> {
         children: _pages,
       ),
       floatingActionButton: FloatingActionButton(
-        elevation: 4,
-        backgroundColor: Theme.of(context).colorScheme.primary,
-        foregroundColor: Theme.of(context).colorScheme.onPrimary,
+        elevation: 6,
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
         shape: const CircleBorder(),
         tooltip: 'Add Transaction',
         onPressed: _showAddOptions,
         child: const Icon(Icons.add, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
-      bottomNavigationBar: SafeArea(
-        bottom: true,
-        child: NavigationBar(
-          elevation: 8,
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (index) => setState(() => _currentIndex = index),
-          destinations: [
-            NavigationDestination(
-              icon: const Icon(Icons.home_outlined),
-              selectedIcon: const Icon(Icons.home),
-              label: AppStrings.tr(language, 'home_tab'),
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8.0,
+        elevation: 10,
+        padding: EdgeInsets.zero,
+        height: 64,
+        color: theme.colorScheme.surface,
+        child: SafeArea(
+          top: false,
+          bottom: true,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              // Left Group: Home & Split
+              Expanded(
+                child: _buildNavItem(
+                  index: 0,
+                  icon: Icons.home_outlined,
+                  selectedIcon: Icons.home,
+                  label: AppStrings.tr(language, 'home_tab'),
+                ),
+              ),
+              Expanded(
+                child: _buildNavItem(
+                  index: 1,
+                  icon: Icons.handshake_outlined,
+                  selectedIcon: Icons.handshake,
+                  label: AppStrings.tr(language, 'split_tab'),
+                ),
+              ),
+              // Center Spacer for Notched FAB
+              const SizedBox(width: 48),
+              // Right Group: Ledger & Reports
+              Expanded(
+                child: _buildNavItem(
+                  index: 2,
+                  icon: Icons.receipt_long_outlined,
+                  selectedIcon: Icons.receipt_long,
+                  label: AppStrings.tr(language, 'history_tab'),
+                ),
+              ),
+              Expanded(
+                child: _buildNavItem(
+                  index: 3,
+                  icon: Icons.bar_chart_outlined,
+                  selectedIcon: Icons.bar_chart,
+                  label: AppStrings.tr(language, 'reports_tab'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+  }) {
+    final isSelected = _currentIndex == index;
+    final color = isSelected
+        ? Theme.of(context).colorScheme.primary
+        : Colors.grey.shade600;
+
+    return InkWell(
+      onTap: () => setState(() => _currentIndex = index),
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              color: color,
+              size: 22,
             ),
-            NavigationDestination(
-              icon: const Icon(Icons.handshake_outlined),
-              selectedIcon: const Icon(Icons.handshake),
-              label: AppStrings.tr(language, 'split_tab'),
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.receipt_long_outlined),
-              selectedIcon: const Icon(Icons.receipt_long),
-              label: AppStrings.tr(language, 'history_tab'),
-            ),
-            NavigationDestination(
-              icon: const Icon(Icons.bar_chart_outlined),
-              selectedIcon: const Icon(Icons.bar_chart),
-              label: AppStrings.tr(language, 'reports_tab'),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -164,3 +230,4 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
   }
 }
+
