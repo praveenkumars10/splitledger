@@ -19,6 +19,8 @@ import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
 import '../../core/services/upi_whatsapp_service.dart';
 import '../transactions/quick_add_bottom_sheet.dart';
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -480,6 +482,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final language = ref.watch(languageControllerProvider);
 
     String partnerName = 'Partner';
     int totalMembers = 2;
@@ -1119,7 +1122,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
               // Action Buttons
               Padding(
-                padding: const EdgeInsets.all(8.0),
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
                 child: Row(
                   children: [
                     Expanded(
@@ -1127,31 +1130,39 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.green.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.received)));
                         },
-                        child: const Text('You Received', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          AppStrings.tr(language, 'you_received'),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     // Quick Add Center Button
                     InkWell(
                       onTap: () => QuickAddBottomSheet.show(context),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
                         decoration: BoxDecoration(
                           color: Colors.amber.shade700,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.bolt, color: Colors.white, size: 18),
-                            SizedBox(width: 2),
-                            Text('Quick', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                            const Icon(Icons.bolt, color: Colors.white, size: 16),
+                            const SizedBox(width: 2),
+                            Text(
+                              AppStrings.tr(language, 'quick_expense'),
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
                           ],
                         ),
                       ),
@@ -1162,13 +1173,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.red.shade600,
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          padding: const EdgeInsets.symmetric(vertical: 13),
                         ),
                         onPressed: () {
                           Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.paid)));
                         },
-                        child: const Text('You Paid', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        child: Text(
+                          AppStrings.tr(language, 'you_paid'),
+                          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                   ],
@@ -1197,9 +1213,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    const Text(
-                                      'Wallet',
-                                      style: TextStyle(
+                                    Text(
+                                      AppStrings.tr(language, 'wallet'),
+                                      style: const TextStyle(
                                         color: Colors.deepPurple,
                                         fontSize: 11,
                                         fontWeight: FontWeight.bold,
@@ -1233,7 +1249,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('Total Received', style: TextStyle(color: Colors.green, fontSize: 11), textAlign: TextAlign.center),
+                              Text(AppStrings.tr(language, 'total_received'), style: const TextStyle(color: Colors.green, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 2),
                               Text(
                                 _currencyFormat.format(totalReceived),
@@ -1253,7 +1269,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              const Text('Total Paid', style: TextStyle(color: Colors.red, fontSize: 11), textAlign: TextAlign.center),
+                              Text(AppStrings.tr(language, 'total_paid'), style: const TextStyle(color: Colors.red, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                               const SizedBox(height: 2),
                               Text(
                                 _currencyFormat.format(totalPaid),
@@ -1279,7 +1295,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Text('Your Balance', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11), textAlign: TextAlign.center),
+                                Text(AppStrings.tr(language, 'your_balance'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10), textAlign: TextAlign.center, maxLines: 1, overflow: TextOverflow.ellipsis),
                                 const SizedBox(height: 2),
                                 Text(
                                   walletAmount > 0

@@ -10,11 +10,16 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
+import '../wallet/wallet_repository.dart';
+import 'widgets/category_breakdown_card.dart';
+import 'widgets/daily_budget_card.dart';
 
 class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
@@ -28,7 +33,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   bool _allTime = false;
 
   final _monthFormat = DateFormat('MMM yyyy');
-  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9');
+  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
   Future<void> _selectMonth() async {
     final now = DateTime.now();
@@ -47,40 +52,75 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
-  Future<void> _exportPdf(GroupSplitResult split) async {
+  Future<void> _exportPdf(GroupSplitResult split, List<TransactionModel> periodTransactions, String householdName) async {
     try {
       final pdf = pw.Document();
       pdf.addPage(
-        pw.Page(
+        pw.MultiPage(
           pageFormat: PdfPageFormat.a4,
-          build: (context) => pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              pw.Text('SplitLedger Report', style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 8),
-              pw.Text(_allTime ? 'All Time' : _monthFormat.format(_selectedMonth), style: const pw.TextStyle(fontSize: 18)),
-              pw.SizedBox(height: 24),
-              pw.Text('Total Group Expense: ${_currencyFormat.format(split.totalExpense).replaceAll('₹', 'Rs.')}'),
-              pw.SizedBox(height: 16),
-              ...split.balances.map((b) => pw.Padding(
-                padding: const pw.EdgeInsets.only(bottom: 8),
-                child: pw.Text('${b.name} Paid: ${_currencyFormat.format(b.paid).replaceAll('₹', 'Rs.')}')
+          margin: const pw.EdgeInsets.all(32),
+          build: (context) => [
+            pw.Header(
+              level: 0,
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text('SplitLedger Expense Statement', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
+                  pw.Text(_allTime ? 'All Time' : _monthFormat.format(_selectedMonth), style: const pw.TextStyle(fontSize: 14)),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 12),
+            pw.Text('Group / Household: $householdName', style: const pw.TextStyle(fontSize: 14)),
+            pw.Text('Generated: ${DateFormat('dd MMM yyyy, hh:mm a').format(DateTime.now())}', style: const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
+            pw.Divider(),
+            pw.SizedBox(height: 12),
+            pw.Text('Total Group Expense: Rs. ${split.totalExpense.toStringAsFixed(2)}', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 12),
+            pw.Text('Member Contributions:', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            ...split.balances.map((b) => pw.Padding(
+              padding: const pw.EdgeInsets.only(bottom: 4),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(b.name),
+                  pw.Text('Rs. ${b.paid.toStringAsFixed(2)}'),
+                ],
+              ),
+            )),
+            pw.SizedBox(height: 16),
+            pw.Text('Settlements & Dues:', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 6),
+            if (split.isSettled)
+              pw.Text('All settled up! No dues pending.', style: const pw.TextStyle(color: PdfColors.green700))
+            else
+              ...split.settlements.map((s) => pw.Padding(
+                padding: const pw.EdgeInsets.only(bottom: 4),
+                child: pw.Text('• ${s.toString().replaceAll('₹', 'Rs. ')}', style: const pw.TextStyle(color: PdfColors.red700)),
               )),
-              pw.SizedBox(height: 24),
-              if (split.isSettled)
-                pw.Text('No due. You are all settled up!', style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold))
-              else
-                ...split.settlements.map((s) => pw.Padding(
-                  padding: const pw.EdgeInsets.only(bottom: 8),
-                  child: pw.Text(s.toString().replaceAll('₹', 'Rs.'), style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
-                )),
-            ],
-          ),
+            pw.SizedBox(height: 20),
+            pw.Text('Transaction Log (${periodTransactions.length} items):', style: pw.TextStyle(fontSize: 13, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 8),
+            pw.TableHelper.fromTextArray(
+              headers: ['Date', 'Category', 'Description', 'Paid By', 'Amount'],
+              data: periodTransactions.map((tx) => [
+                DateFormat('dd/MM/yyyy').format(tx.date),
+                tx.category.toUpperCase(),
+                tx.note ?? '-',
+                tx.paidByName,
+                'Rs. ${tx.amount.toStringAsFixed(2)}',
+              ]).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10),
+              cellStyle: const pw.TextStyle(fontSize: 9),
+              cellAlignment: pw.Alignment.centerLeft,
+            ),
+          ],
         ),
       );
 
       final dir = await getTemporaryDirectory();
-      final fileName = 'splitledger_report_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
+      final fileName = 'SplitLedger_Statement_${DateFormat('yyyyMMdd_HHmmss').format(DateTime.now())}.pdf';
       final file = File('${dir.path}/$fileName');
       await file.writeAsBytes(await pdf.save());
 
@@ -88,7 +128,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
         await SharePlus.instance.share(
           ShareParams(
             files: [XFile(file.path)],
-            text: 'SplitLedger Report',
+            text: 'SplitLedger Expense Statement for $householdName',
           ),
         );
       }
@@ -141,14 +181,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
+    final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final language = ref.watch(languageControllerProvider);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FA),
       appBar: AppBar(
-        title: const Text('Reports', style: TextStyle(color: Color(0xFF1C2434), fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: Color(0xFF1C2434)),
+        title: Text(AppStrings.tr(language, 'reports_tab')),
+        centerTitle: false,
       ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -166,8 +205,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             members: groupMembers,
           );
 
+          final userSpend = periodTransactions
+              .where((t) => t.paidByUid == currentUser.uid && t.type == TransactionType.paid && t.category.toLowerCase() != 'settlement')
+              .fold(0.0, (sum, t) => sum + t.amount);
+
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -176,49 +219,27 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ChoiceChip(
-                      label: const Text('All Time'),
+                      label: Text(AppStrings.tr(language, 'all_time')),
                       selected: _allTime,
                       onSelected: (selected) => setState(() => _allTime = selected),
-                      selectedColor: const Color(0xFF1C2434).withValues(alpha: 0.05),
-                      showCheckmark: false,
-                      labelStyle: TextStyle(
-                        color: _allTime ? const Color(0xFF1C2434) : Colors.grey,
-                        fontWeight: _allTime ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: _allTime ? const Color(0xFF1C2434) : Colors.grey.withValues(alpha: 0.3)),
-                      ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 8),
                     ChoiceChip(
                       label: Text(_allTime ? 'Pick Month' : _monthFormat.format(_selectedMonth)),
                       selected: !_allTime,
                       onSelected: (selected) {
                         if (selected) _selectMonth();
                       },
-                      selectedColor: const Color(0xFF4F46E5).withValues(alpha: 0.1),
-                      showCheckmark: false,
-                      avatar: !_allTime ? const Icon(Icons.calendar_today, size: 16, color: Color(0xFF4F46E5)) : null,
-                      labelStyle: TextStyle(
-                        color: !_allTime ? const Color(0xFF4F46E5) : Colors.grey,
-                        fontWeight: !_allTime ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: !_allTime ? const Color(0xFF4F46E5).withValues(alpha: 0.5) : Colors.grey.withValues(alpha: 0.3)),
-                      ),
                     ),
                     if (!_allTime) ...[
-                      const SizedBox(width: 8),
                       IconButton(
-                        icon: const Icon(Icons.chevron_left, color: Color(0xFF1C2434)),
+                        icon: const Icon(Icons.chevron_left),
                         onPressed: () => setState(() {
                           _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
                         }),
                       ),
                       IconButton(
-                        icon: const Icon(Icons.chevron_right, color: Color(0xFF1C2434)),
+                        icon: const Icon(Icons.chevron_right),
                         onPressed: () => setState(() {
                           _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
                         }),
@@ -226,183 +247,151 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     ],
                   ],
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Daily Budget Card
+                DailyBudgetCard(
+                  walletAmount: walletAmount,
+                  userTotalSpend: userSpend,
+                ),
+                const SizedBox(height: 16),
 
                 // Summary cards
-                Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.03),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        _allTime ? 'Total Group Expense' : 'Expense in ${_monthFormat.format(_selectedMonth)}',
-                        style: const TextStyle(color: Color(0xFF6B7280), fontSize: 14, fontWeight: FontWeight.w500),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _currencyFormat.format(split.totalExpense),
-                        style: const TextStyle(fontSize: 36, fontWeight: FontWeight.w900, color: Color(0xFF1C2434)),
-                      ),
-                    ],
+                Card(
+                  elevation: 2,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      children: [
+                        Text(
+                          _allTime ? 'Total Group Expense' : 'Expense in ${_monthFormat.format(_selectedMonth)}',
+                          style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _currencyFormat.format(split.totalExpense),
+                          style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
+
+                // Member metric cards
                 Wrap(
-                  spacing: 16,
-                  runSpacing: 16,
+                  spacing: 12,
+                  runSpacing: 12,
                   children: split.balances.map((b) {
                     final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
                     return SizedBox(
-                      width: (MediaQuery.of(context).size.width - 48 - 16) / 2,
+                      width: (MediaQuery.of(context).size.width - 32 - 12) / 2,
                       child: _buildMetricCard('${b.name} Paid', b.paid, color),
                     );
                   }).toList(),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 20),
 
-                // Settlement
-                if (split.isSettled)
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.grey.shade300),
-                    ),
-                    child: const Text('No due. You are all settled up!', style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
-                  )
-                else
-                  ...split.settlements.map((s) => Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.red.shade50,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.red.shade100),
-                    ),
-                    child: Text(s.toString(), style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 16), textAlign: TextAlign.center),
-                  )),
-                const SizedBox(height: 24),
+                // Category Breakdown Card
+                CategoryBreakdownCard(transactions: periodTransactions),
+                const SizedBox(height: 20),
 
-                // Chart
-                SizedBox(
-                  height: 260,
-                  child: Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.03),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: BarChart(
-                      BarChartData(
-                        alignment: BarChartAlignment.spaceAround,
-                        maxY: split.balances.isEmpty ? 100 : (split.balances.map((b) => b.paid).reduce((a, b) => a > b ? a : b)) * 1.2 + 10,
-                        barTouchData: BarTouchData(enabled: true),
-                        titlesData: FlTitlesData(
-                          show: true,
-                          bottomTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true,
-                              reservedSize: 40,
-                              getTitlesWidget: (value, meta) {
-                                final index = value.toInt();
-                                if (index < 0 || index >= split.balances.length) return const SizedBox();
-                                final label = shortName(split.balances[index].name);
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    label, 
-                                    style: const TextStyle(fontSize: 11, color: Color(0xFF6B7280), fontWeight: FontWeight.w600),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
+                // Visual Chart
+                if (split.balances.isNotEmpty)
+                  Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('Spending by Member', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 220,
+                            child: BarChart(
+                              BarChartData(
+                                alignment: BarChartAlignment.spaceAround,
+                                maxY: split.balances.isEmpty ? 100 : (split.balances.map((b) => b.paid).reduce((a, b) => a > b ? a : b)) * 1.2 + 10,
+                                barTouchData: BarTouchData(enabled: true),
+                                titlesData: FlTitlesData(
+                                  show: true,
+                                  bottomTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 32,
+                                      getTitlesWidget: (value, meta) {
+                                        final index = value.toInt();
+                                        if (index < 0 || index >= split.balances.length) return const SizedBox();
+                                        final label = shortName(split.balances[index].name);
+                                        return Padding(
+                                          padding: const EdgeInsets.only(top: 6),
+                                          child: Text(
+                                            label,
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        );
+                                      },
+                                    ),
                                   ),
-                                );
-                              },
-                            ),
-                          ),
-                          leftTitles: AxisTitles(
-                            sideTitles: SideTitles(
-                              showTitles: true, 
-                              reservedSize: 46,
-                              getTitlesWidget: (value, meta) {
-                                if (value == 0) return const SizedBox();
-                                return Padding(
-                                  padding: const EdgeInsets.only(right: 8),
-                                  child: Text(
-                                    NumberFormat.compact().format(value), 
-                                    style: const TextStyle(fontSize: 10, color: Color(0xFF9CA3AF)),
-                                    textAlign: TextAlign.right,
+                                  leftTitles: AxisTitles(
+                                    sideTitles: SideTitles(
+                                      showTitles: true,
+                                      reservedSize: 42,
+                                      getTitlesWidget: (value, meta) {
+                                        if (value == 0) return const SizedBox();
+                                        return Text(
+                                          NumberFormat.compact().format(value),
+                                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                        );
+                                      },
+                                    ),
                                   ),
-                                );
-                              }
-                            ),
-                          ),
-                          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                          rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                        ),
-                        borderData: FlBorderData(show: false),
-                        gridData: FlGridData(
-                          show: true, 
-                          drawVerticalLine: false,
-                          getDrawingHorizontalLine: (value) => FlLine(
-                            color: Colors.grey.withValues(alpha: 0.2),
-                            strokeWidth: 1,
-                            dashArray: [5, 5],
-                          ),
-                        ),
-                        barGroups: split.balances.asMap().entries.map((e) {
-                          final color = Colors.primaries[e.key % Colors.primaries.length];
-                          return BarChartGroupData(
-                            x: e.key,
-                            barRods: [
-                              BarChartRodData(
-                                toY: e.value.paid,
-                                color: color,
-                                width: split.balances.length > 2 ? 24 : 32,
-                                borderRadius: BorderRadius.circular(6),
+                                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                                ),
+                                borderData: FlBorderData(show: false),
+                                gridData: const FlGridData(show: true, drawVerticalLine: false),
+                                barGroups: split.balances.asMap().entries.map((e) {
+                                  final color = Colors.primaries[e.key % Colors.primaries.length];
+                                  return BarChartGroupData(
+                                    x: e.key,
+                                    barRods: [
+                                      BarChartRodData(
+                                        toY: e.value.paid,
+                                        color: color,
+                                        width: split.balances.length > 3 ? 18 : 26,
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                    ],
+                                  );
+                                }).toList(),
                               ),
-                            ],
-                          );
-                        }).toList(),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
 
                 // Export buttons
                 Row(
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => _exportPdf(split),
+                        onPressed: () => _exportPdf(split, periodTransactions, household?.name ?? 'Household'),
                         icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
-                        label: const Text('Export PDF', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        label: Text(AppStrings.tr(language, 'export_pdf'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1C2434),
+                          backgroundColor: Colors.red.shade700,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -411,20 +400,18 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       child: ElevatedButton.icon(
                         onPressed: () => _exportCsv(periodTransactions, household?.name ?? 'Household'),
                         icon: const Icon(Icons.table_chart_outlined, color: Colors.white),
-                        label: const Text('Export CSV', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                        label: Text(AppStrings.tr(language, 'export_csv'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.deepPurple,
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
                   ],
                 ),
+                const SizedBox(height: 32),
               ],
             ),
           );
@@ -434,21 +421,30 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
   }
 
   Widget _buildMetricCard(String title, double amount, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+    return Card(
+      elevation: 0,
+      color: color.withValues(alpha: 0.08),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: color.withValues(alpha: 0.3)),
       ),
-      child: Column(
-        children: [
-          Text(title, style: TextStyle(color: color.withValues(alpha: 0.8), fontWeight: FontWeight.w600, fontSize: 13)),
-          const SizedBox(height: 8),
-          Text(
-            _currencyFormat.format(amount),
-            style: TextStyle(color: color, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-        ],
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Text(
+              title,
+              style: TextStyle(color: color.withValues(alpha: 0.8), fontWeight: FontWeight.w600, fontSize: 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              _currencyFormat.format(amount),
+              style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
       ),
     );
   }

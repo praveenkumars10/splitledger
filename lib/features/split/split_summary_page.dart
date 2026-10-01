@@ -12,6 +12,8 @@ import '../reports/widgets/category_breakdown_card.dart';
 import '../reports/widgets/daily_budget_card.dart';
 import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 
 class SplitSummaryPage extends ConsumerStatefulWidget {
   const SplitSummaryPage({super.key});
@@ -79,6 +81,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final language = ref.watch(languageControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -200,11 +203,11 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                 const SizedBox(height: 24),
 
                 // Settlement Section
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.handshake, color: Colors.teal),
-                    SizedBox(width: 8),
-                    Text('Settlements & Actions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Icon(Icons.handshake, color: Colors.teal),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.tr(language, 'settlements'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
                 ),
                 const SizedBox(height: 12),
@@ -217,19 +220,19 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
                     ),
-                    child: const Column(
+                    child: Column(
                       children: [
-                        Icon(Icons.check_circle, color: Colors.green, size: 40),
-                        SizedBox(height: 12),
+                        const Icon(Icons.check_circle, color: Colors.green, size: 40),
+                        const SizedBox(height: 12),
                         Text(
-                          'All Settled Up! 🎉',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
+                          AppStrings.tr(language, 'no_due'),
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green),
                           textAlign: TextAlign.center,
                         ),
-                        SizedBox(height: 4),
+                        const SizedBox(height: 4),
                         Text(
-                          'No pending dues in this group.',
-                          style: TextStyle(fontSize: 13, color: Colors.grey),
+                          AppStrings.tr(language, 'no_due_sub'),
+                          style: const TextStyle(fontSize: 13, color: Colors.grey),
                         ),
                       ],
                     ),
@@ -303,7 +306,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                                     );
                                   },
                                   icon: const Icon(Icons.account_balance, size: 16),
-                                  label: const Text('UPI Pay', style: TextStyle(fontSize: 12)),
+                                  label: Text(AppStrings.tr(language, 'pay_upi'), style: const TextStyle(fontSize: 12)),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -323,7 +326,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                                     );
                                   },
                                   icon: const Icon(Icons.chat, size: 16),
-                                  label: const Text('WhatsApp', style: TextStyle(fontSize: 12)),
+                                  label: Text(AppStrings.tr(language, 'remind_whatsapp'), style: const TextStyle(fontSize: 12)),
                                 ),
                               ),
                             ],
@@ -338,7 +341,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                                 side: BorderSide(color: Colors.green.shade200),
                               ),
                               onPressed: () => _recordSettlement(s, household.id, currentUser.uid, myName),
-                              child: Text('Mark as Paid / Settle ${_currencyFormat.format(s.amount)}'),
+                              child: Text('${AppStrings.tr(language, 'mark_paid')} ${_currencyFormat.format(s.amount)}'),
                             ),
                         ],
                       ),
