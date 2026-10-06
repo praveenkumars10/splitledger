@@ -1,8 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/date_filters.dart';
@@ -11,13 +9,10 @@ import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
-import '../reports/reports_page.dart';
 import '../settings/settings_page.dart';
-import '../split/split_summary_page.dart';
 import '../transactions/add_transaction_page.dart';
 import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
-import '../../core/services/upi_whatsapp_service.dart';
 import '../transactions/quick_add_bottom_sheet.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
@@ -47,6 +42,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   final _dateFormat = DateFormat('dd MMM, hh:mm a');
 
   bool get _isMonthlyFilter => _selectedTimeFilter == 'Monthly';
+  bool get _hasActiveFilters => _keyword != null || _rangeStart != null || _minAmount != null || _maxAmount != null;
+
+  void _clearAllFilters() {
+    setState(() {
+      _keyword = null;
+      _rangeStart = null;
+      _rangeEnd = null;
+      _minAmount = null;
+      _maxAmount = null;
+    });
+  }
 
   Future<void> _selectMonth() async {
     final now = DateTime.now();
@@ -225,186 +231,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  void _showSettleUpDialog(GroupSplitResult split, String householdId, String currentUid, String currentName) {
-    final language = ref.read(languageControllerProvider);
-    if (split.settlements.isEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(AppStrings.tr(language, 'no_due')),
-          content: Text(AppStrings.tr(language, 'no_due_sub')),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.tr(language, 'done'))),
-          ],
-        ),
-      );
-      return;
-    }
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.handshake_outlined, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(AppStrings.tr(language, 'settle_up')),
-          ],
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(AppStrings.tr(language, 'settlements'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-              const SizedBox(height: 8),
-              ...split.settlements.map((s) {
-                return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Theme.of(context).dividerColor),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${s.from} ➔ ${s.to} : ${_currencyFormat.format(s.amount)}',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-                      ),
-                      const SizedBox(height: 8),
-                      // Action buttons: UPI Pay & WhatsApp Reminder
-                      Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                foregroundColor: Theme.of(context).colorScheme.primary,
-                                side: BorderSide(color: Theme.of(context).colorScheme.primary),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              onPressed: () {
-                                UpiWhatsAppService.payViaUpi(
-                                  context: context,
-                                  payeeName: s.to,
-                                  amount: s.amount,
-                                  note: 'SplitLedger: ${s.from} to ${s.to}',
-                                );
-                              },
-                              icon: const Icon(Icons.account_balance, size: 14),
-                              label: Text(AppStrings.tr(language, 'pay_upi'), style: const TextStyle(fontSize: 11)),
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              style: OutlinedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(vertical: 6),
-                                foregroundColor: const Color(0xFF25D366),
-                                side: const BorderSide(color: Color(0xFF25D366)),
-                                visualDensity: VisualDensity.compact,
-                              ),
-                              onPressed: () {
-                                UpiWhatsAppService.sendWhatsAppReminder(
-                                  context: context,
-                                  recipientName: s.from,
-                                  amount: s.amount,
-                                );
-                              },
-                              icon: const Icon(Icons.chat, size: 14),
-                              label: Text(AppStrings.tr(language, 'remind_whatsapp'), style: const TextStyle(fontSize: 11)),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.tonal(
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 8),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            Navigator.pop(context);
-                            final tx = TransactionModel(
-                              id: '',
-                              amount: s.amount,
-                              category: 'settlement',
-                              paidByUid: currentUid,
-                              paidByName: currentName,
-                              note: 'Settlement: ${s.from} paid ${s.to}',
-                              date: DateTime.now(),
-                              type: TransactionType.received,
-                              createdAt: DateTime.now(),
-                            );
-                            try {
-                              await ref.read(transactionRepositoryProvider).addTransaction(householdId, tx);
-                              messenger.showSnackBar(
-                                SnackBar(
-                                  content: Text('Recorded settlement of ${_currencyFormat.format(s.amount)}!'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } catch (e) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
-                          },
-                          child: Text('${AppStrings.tr(language, 'mark_paid')} ${_currencyFormat.format(s.amount)}'),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.tr(language, 'close'))),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _exportCsv(List<TransactionModel> transactions, String householdName) async {
-    try {
-      final buffer = StringBuffer();
-      buffer.writeln('Date,Time,Description,Category,Paid By,Type,Amount (INR)');
-      for (final tx in transactions) {
-        final dateStr = DateFormat('yyyy-MM-dd').format(tx.date);
-        final timeStr = DateFormat('hh:mm a').format(tx.date);
-        final noteStr = (tx.note ?? '').replaceAll('"', '""');
-        final categoryStr = tx.category.replaceAll('"', '""');
-        final payerStr = tx.paidByName.replaceAll('"', '""');
-        final typeStr = tx.type == TransactionType.paid ? 'Paid' : 'Received';
-        final amountStr = tx.amount.toStringAsFixed(2);
-        buffer.writeln('"$dateStr","$timeStr","$noteStr","$categoryStr","$payerStr","$typeStr",$amountStr');
-      }
-
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/SplitLedger_Transactions_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.csv');
-      await file.writeAsString(buffer.toString());
-
-      await SharePlus.instance.share(
-        ShareParams(
-          text: 'SplitLedger CSV Export for $householdName',
-          files: [XFile(file.path)],
-        ),
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Export failed: $e')));
-      }
-    }
-  }
-
   void _showAmountFilter() {
     final language = ref.read(languageControllerProvider);
     final minController = TextEditingController(
@@ -465,20 +291,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     );
   }
 
-  void _shareSummary(GroupSplitResult split) {
-    if (split.settlements.isEmpty) {
-      SharePlus.instance.share(
-        ShareParams(text: 'SplitLedger Summary: All expenses settled up! No dues pending 🎉'),
-      );
-    } else {
-      final buffer = StringBuffer('📊 SplitLedger Settlement Summary:\n\n');
-      for (final s in split.settlements) {
-        buffer.writeln('• ${s.from} owes ${s.to}: ₹${s.amount.toStringAsFixed(0)}');
-      }
-      SharePlus.instance.share(ShareParams(text: buffer.toString()));
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
@@ -498,20 +310,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
 
     final groupMembers = household?.members.map((m) => (uid: m.uid, name: shortName(m.name))).toList() ?? [];
-    
-    final allTransactions = transactionsAsync.whenOrNull(data: (value) => value) ?? [];
-    final currentSplit = currentUser != null
-        ? calculateGroupSplit(
-            transactions: allTransactions,
-            members: groupMembers,
-          )
-        : const GroupSplitResult(
-            totalExpense: 0,
-            memberCount: 0,
-            individualShare: 0,
-            balances: [],
-            settlements: [],
-          );
 
     return Scaffold(
       drawer: Drawer(
@@ -525,7 +323,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 children: [
                   Icon(Icons.book, size: 48, color: Colors.white),
                   SizedBox(height: 8),
-                  Text('SplitLedger', style: TextStyle(color: Colors.white, fontSize: 24)),
+                  Text('SplitLedger', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
                 ],
               ),
             ),
@@ -547,38 +345,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 if (currentUser != null) {
                   _showWalletDialog(walletAmount, currentUser.uid);
                 }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.handshake_outlined, color: Colors.green),
-              title: Text(AppStrings.tr(language, 'settle_up')),
-              subtitle: Text(
-                currentSplit.settlements.isEmpty
-                    ? AppStrings.tr(language, 'no_due')
-                    : '${currentSplit.settlements.length} ${AppStrings.tr(language, 'dues_pending')}',
-                style: const TextStyle(fontSize: 12),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                if (household != null && currentUser != null) {
-                  _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? AppStrings.tr(language, 'you'));
-                }
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.pie_chart),
-              title: Text(AppStrings.tr(language, 'split_tab')),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const SplitSummaryPage()));
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.table_chart_outlined),
-              title: Text(AppStrings.tr(language, 'export_csv')),
-              onTap: () {
-                Navigator.pop(context);
-                _exportCsv(allTransactions, household?.name ?? 'Household');
               },
             ),
             ListTile(
@@ -664,56 +430,64 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             onSelected: (value) {
               switch (value) {
-                case 'Wallet':
-                  if (currentUser != null) {
-                    _showWalletDialog(walletAmount, currentUser.uid);
-                  }
-                  break;
-                case 'Settle Up':
-                  if (household != null && currentUser != null) {
-                    _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? AppStrings.tr(language, 'you'));
-                  }
-                  break;
-                case 'Export CSV':
-                  _exportCsv(allTransactions, household?.name ?? 'Household');
-                  break;
-                case 'Select Date Range':
-                  _selectDateRange();
-                  break;
-                case 'Keyword Search':
+                case 'Search':
                   _showKeywordSearch();
+                  break;
+                case 'DateRange':
+                  _selectDateRange();
                   break;
                 case 'Amount':
                   _showAmountFilter();
                   break;
-                case 'Share':
-                  _shareSummary(currentSplit);
-                  break;
-                case 'Report':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ReportsPage()));
-                  break;
-                case 'Split Summary':
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SplitSummaryPage()));
+                case 'Clear':
+                  _clearAllFilters();
                   break;
               }
             },
             itemBuilder: (context) => [
-              PopupMenuItem(value: 'Wallet', child: Row(children: [const Icon(Icons.account_balance_wallet, size: 18), const SizedBox(width: 8), Text(AppStrings.tr(language, 'wallet_amount'))])),
-              PopupMenuItem(value: 'Settle Up', child: Row(children: [const Icon(Icons.handshake_outlined, size: 18, color: Colors.green), const SizedBox(width: 8), Text(AppStrings.tr(language, 'settle_up'))])),
-              PopupMenuItem(value: 'Export CSV', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 18), const SizedBox(width: 8), Text(AppStrings.tr(language, 'export_csv'))])),
-              if (_rangeStart != null && _rangeEnd != null)
-                PopupMenuItem(
-                  value: 'Clear Range',
-                  child: Text('${AppStrings.tr(language, 'clear_filter')} (${DateFormat('dd MMM').format(_rangeStart!)} - ${DateFormat('dd MMM').format(_rangeEnd!)})'),
-                  onTap: () => setState(() {
-                    _rangeStart = null;
-                    _rangeEnd = null;
-                  }),
+              PopupMenuItem(
+                value: 'Search',
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, size: 18),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.tr(language, 'search_title')),
+                  ],
                 ),
-              PopupMenuItem(value: 'Keyword Search', child: Text(AppStrings.tr(language, 'search_title'))),
-              PopupMenuItem(value: 'Amount', child: Text(AppStrings.tr(language, 'filter_by_amount'))),
-              PopupMenuItem(value: 'Report', child: Text(AppStrings.tr(language, 'reports_tab'))),
-              PopupMenuItem(value: 'Split Summary', child: Text(AppStrings.tr(language, 'split_tab'))),
+              ),
+              PopupMenuItem(
+                value: 'DateRange',
+                child: Row(
+                  children: [
+                    const Icon(Icons.date_range, size: 18),
+                    const SizedBox(width: 8),
+                    const Text('Select Date Range'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'Amount',
+                child: Row(
+                  children: [
+                    const Icon(Icons.tune, size: 18),
+                    const SizedBox(width: 8),
+                    Text(AppStrings.tr(language, 'filter_by_amount')),
+                  ],
+                ),
+              ),
+              if (_hasActiveFilters) ...[
+                const PopupMenuDivider(),
+                PopupMenuItem(
+                  value: 'Clear',
+                  child: Row(
+                    children: [
+                      const Icon(Icons.clear_all, size: 18, color: Colors.red),
+                      const SizedBox(width: 8),
+                      Text(AppStrings.tr(language, 'clear_filter'), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                    ],
+                  ),
+                ),
+              ],
             ],
           ),
         ],
@@ -921,7 +695,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           return Column(
             children: [
               // Active filter chips
-              if (_keyword != null || _rangeStart != null || _minAmount != null)
+              if (_hasActiveFilters)
                 Container(
                   color: Theme.of(context).colorScheme.surfaceContainerHighest,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -946,6 +720,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             _maxAmount = null;
                           }),
                         ),
+                      ActionChip(
+                        avatar: const Icon(Icons.clear_all, size: 16, color: Colors.red),
+                        label: Text(AppStrings.tr(language, 'clear_filter'), style: const TextStyle(color: Colors.red, fontSize: 12, fontWeight: FontWeight.bold)),
+                        onPressed: _clearAllFilters,
+                      ),
                     ],
                   ),
                 ),
@@ -1135,81 +914,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           );
                         },
                       ),
-              ),
-              // Action Buttons
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 6.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      flex: 4,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green.shade600,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-                        ),
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.received)));
-                        },
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            AppStrings.tr(language, 'you_received'),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    // Quick Add Center Button
-                    InkWell(
-                      onTap: () => QuickAddBottomSheet.show(context),
-                      borderRadius: BorderRadius.circular(10),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 11),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.shade700,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.bolt, color: Colors.white, size: 16),
-                            const SizedBox(width: 2),
-                            Text(
-                              AppStrings.tr(language, 'quick_expense'),
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      flex: 4,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red.shade600,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
-                        ),
-                        onPressed: () {
-                          Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.paid)));
-                        },
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            AppStrings.tr(language, 'you_paid'),
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
               // Footer
               Container(

@@ -8,10 +8,7 @@ import '../../core/services/upi_whatsapp_service.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
-import '../reports/widgets/category_breakdown_card.dart';
-import '../reports/widgets/daily_budget_card.dart';
 import '../transactions/transaction_repository.dart';
-import '../wallet/wallet_repository.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 
@@ -80,7 +77,6 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
-    final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final language = ref.watch(languageControllerProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
@@ -107,11 +103,6 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
           );
 
           final myName = currentUser.displayName ?? AppStrings.tr(language, 'you');
-
-          // User's total spend for daily budget card
-          final userSpend = periodTransactions
-              .where((t) => t.paidByUid == currentUser.uid && t.type == TransactionType.paid && t.category.toLowerCase() != 'settlement')
-              .fold(0.0, (sum, t) => sum + t.amount);
 
           return SingleChildScrollView(
             padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 90.0),
@@ -152,13 +143,6 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                       ),
                     ],
                   ],
-                ),
-                const SizedBox(height: 16),
-
-                // Daily Budget Card
-                DailyBudgetCard(
-                  walletAmount: walletAmount,
-                  userTotalSpend: userSpend,
                 ),
                 const SizedBox(height: 16),
 
@@ -350,10 +334,6 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                     );
                   }),
                 const SizedBox(height: 20),
-
-                // Category Breakdown Card
-                CategoryBreakdownCard(transactions: periodTransactions),
-                const SizedBox(height: 24),
               ],
             ),
           );

@@ -267,7 +267,14 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
                         label: Text(catLabel),
                         selected: isSelected,
                         onSelected: (val) {
-                          if (val) setState(() => _selectedCategory = cat.$1);
+                          if (val) {
+                            setState(() {
+                              _selectedCategory = cat.$1;
+                              if (_noteController.text.trim().isEmpty) {
+                                _noteController.text = catLabel;
+                              }
+                            });
+                          }
                         },
                       ),
                     );
