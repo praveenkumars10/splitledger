@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 import 'auth_controller.dart';
 import 'signup_page.dart';
 
@@ -56,8 +58,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         children: [
           Text(
             label,
-            style: const TextStyle(
-              color: Color(0xFF1C2434),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
               fontWeight: FontWeight.bold,
               fontSize: 14,
             ),
@@ -70,8 +72,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FA),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -81,7 +85,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               child: Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -100,57 +104,57 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1C2434),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.account_balance_wallet,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.primary,
                           size: 40,
                         ),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'SplitLedger',
+                    Text(
+                      AppStrings.tr(language, 'app_title'),
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1C2434),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Manage shared expenses effortlessly',
+                    Text(
+                      AppStrings.tr(language, 'manage_shared_expenses'),
                       style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF6B7280),
+                        color: onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
                     
-                    _buildLabelRow('Email Address'),
+                    _buildLabelRow(AppStrings.tr(language, 'email_address')),
                     TextField(
                       controller: _emailController,
                       decoration: InputDecoration(
                         hintText: 'name@company.com',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        prefixIcon: const Icon(Icons.alternate_email, color: Color(0xFF9CA3AF)),
+                        hintStyle: TextStyle(color: onSurfaceVariant),
+                        prefixIcon: Icon(Icons.alternate_email, color: onSurfaceVariant),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).scaffoldBackgroundColor,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1C2434)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                         ),
                       ),
                       keyboardType: TextInputType.emailAddress,
@@ -159,40 +163,31 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     const SizedBox(height: 24),
                     
                     _buildLabelRow(
-                      'Password',
-                      action: TextButton(
-                        onPressed: () {},
-                        style: TextButton.styleFrom(
-                          padding: EdgeInsets.zero,
-                          minimumSize: const Size(0, 0),
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text('Forgot?', style: TextStyle(color: Color(0xFF4F46E5), fontSize: 13)),
-                      ),
+                      AppStrings.tr(language, 'password'),
                     ),
                     TextField(
                       controller: _passwordController,
                       decoration: InputDecoration(
                         hintText: '••••••••',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF)),
+                        hintStyle: TextStyle(color: onSurfaceVariant),
+                        prefixIcon: Icon(Icons.lock_outline, color: onSurfaceVariant),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).scaffoldBackgroundColor,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: onSurfaceVariant),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1C2434)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                         ),
                       ),
                       obscureText: _obscurePassword,
@@ -200,16 +195,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                     ),
                     const SizedBox(height: 32),
                     
-                    ElevatedButton(
+                    FilledButton(
                       onPressed: _isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1C2434),
-                        foregroundColor: Colors.white,
+                      style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
                       ),
                       child: _isLoading
                           ? const SizedBox(
@@ -217,16 +209,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text('Login', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : Text(AppStrings.tr(language, 'login'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 24),
                     
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Don't have an account? ",
-                          style: TextStyle(color: Color(0xFF6B7280)),
+                        Text(
+                          "${AppStrings.tr(language, 'dont_have_account').split('?').first}? ",
+                          style: TextStyle(color: onSurfaceVariant),
                         ),
                         GestureDetector(
                           onTap: () {
@@ -234,10 +226,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               MaterialPageRoute(builder: (_) => const SignupPage()),
                             );
                           },
-                          child: const Text(
-                            'Sign up',
+                          child: Text(
+                            AppStrings.tr(language, 'signup'),
                             style: TextStyle(
-                              color: Color(0xFF4F46E5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

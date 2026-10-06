@@ -183,6 +183,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Scaffold(
       appBar: AppBar(
@@ -225,7 +226,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: Text(_allTime ? 'Pick Month' : _monthFormat.format(_selectedMonth)),
+                      label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : _monthFormat.format(_selectedMonth)),
                       selected: !_allTime,
                       onSelected: (selected) {
                         if (selected) _selectMonth();
@@ -265,8 +266,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     child: Column(
                       children: [
                         Text(
-                          _allTime ? 'Total Group Expense' : 'Expense in ${_monthFormat.format(_selectedMonth)}',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+                          _allTime
+                              ? AppStrings.tr(language, 'total_group_expense')
+                              : '${AppStrings.tr(language, 'total_group_expense')} (${_monthFormat.format(_selectedMonth)})',
+                          style: TextStyle(color: onSurfaceVariant, fontSize: 14),
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -291,14 +294,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                           final color = Colors.primaries[split.balances.indexOf(b) % Colors.primaries.length];
                           return SizedBox(
                             width: cardWidth,
-                            child: _buildMetricCard('${b.name} Paid', b.paid, color),
+                            child: _buildMetricCard('${b.name} ${AppStrings.tr(language, 'you_paid')}', b.paid, color),
                           );
                         }).toList(),
                       );
                     },
                   ),
                 const SizedBox(height: 20),
-
 
                 // Category Breakdown Card
                 CategoryBreakdownCard(transactions: periodTransactions),
@@ -314,7 +316,10 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Spending by Member', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                          Text(
+                            AppStrings.tr(language, 'spending_by_member'),
+                            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                          ),
                           const SizedBox(height: 16),
                           SizedBox(
                             height: 220,
@@ -353,7 +358,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                                         if (value == 0) return const SizedBox();
                                         return Text(
                                           NumberFormat.compact().format(value),
-                                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                                          style: TextStyle(fontSize: 10, color: onSurfaceVariant),
                                         );
                                       },
                                     ),
@@ -409,7 +414,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         icon: const Icon(Icons.table_chart_outlined, color: Colors.white),
                         label: Text(AppStrings.tr(language, 'export_csv'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.deepPurple,
+                          backgroundColor: Theme.of(context).colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 14),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),

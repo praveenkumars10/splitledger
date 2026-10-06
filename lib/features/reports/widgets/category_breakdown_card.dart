@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
+import '../../../core/localization/app_strings.dart';
+import '../../../core/localization/language_controller.dart';
 import '../../../models/transaction_model.dart';
 
-class CategoryBreakdownCard extends StatelessWidget {
+class CategoryBreakdownCard extends ConsumerWidget {
   final List<TransactionModel> transactions;
 
   const CategoryBreakdownCard({super.key, required this.transactions});
 
-  static const Map<String, (IconData, Color, String)> categoryMeta = {
-    'food': (Icons.restaurant, Color(0xFFF97316), 'Food & Dining'),
-    'fuel': (Icons.local_gas_station, Color(0xFFEF4444), 'Fuel & Travel'),
-    'tea': (Icons.coffee, Color(0xFF8B5CF6), 'Tea & Snacks'),
-    'grocery': (Icons.shopping_cart, Color(0xFF10B981), 'Groceries'),
-    'rent': (Icons.home, Color(0xFF3B82F6), 'Rent & House'),
-    'bills': (Icons.receipt_long, Color(0xFF06B6D4), 'Utilities & Bills'),
-    'entertainment': (Icons.movie, Color(0xFFEC4899), 'Fun & Movies'),
-    'shopping': (Icons.shopping_bag, Color(0xFFA855F7), 'Shopping'),
-    'other': (Icons.category, Color(0xFF64748B), 'Others'),
+  static const Map<String, (IconData, Color)> categoryMeta = {
+    'food': (Icons.restaurant, Color(0xFFF97316)),
+    'fuel': (Icons.local_gas_station, Color(0xFFEF4444)),
+    'tea': (Icons.coffee, Color(0xFF8B5CF6)),
+    'grocery': (Icons.shopping_cart, Color(0xFF10B981)),
+    'rent': (Icons.home, Color(0xFF3B82F6)),
+    'bills': (Icons.receipt_long, Color(0xFF06B6D4)),
+    'entertainment': (Icons.movie, Color(0xFFEC4899)),
+    'shopping': (Icons.shopping_bag, Color(0xFFA855F7)),
+    'medical': (Icons.medical_services, Color(0xFFE11D48)),
+    'other': (Icons.category, Color(0xFF64748B)),
   };
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language = ref.watch(languageControllerProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     // Filter only spent/expense transactions (TransactionType.paid)
     final expenseTransactions = transactions
@@ -65,10 +72,10 @@ class CategoryBreakdownCard extends StatelessWidget {
                   child: Icon(Icons.pie_chart, color: Theme.of(context).colorScheme.primary, size: 20),
                 ),
                 const SizedBox(width: 10),
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Category Spending Breakdown',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    AppStrings.tr(language, 'category_spending_breakdown'),
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                   ),
                 ),
                 Text(
@@ -83,10 +90,12 @@ class CategoryBreakdownCard extends StatelessWidget {
               final amount = entry.value;
               final percentage = (amount / totalSpend) * 100;
 
-              final meta = categoryMeta[catKey] ?? (Icons.category, const Color(0xFF64748B), catKey.isEmpty ? 'Other' : catKey[0].toUpperCase() + catKey.substring(1));
+              final meta = categoryMeta[catKey] ?? (Icons.category, const Color(0xFF64748B));
               final icon = meta.$1;
               final color = meta.$2;
-              final label = meta.$3;
+              final label = AppStrings.tr(language, catKey).isNotEmpty && AppStrings.tr(language, catKey) != catKey
+                  ? AppStrings.tr(language, catKey)
+                  : (catKey.isEmpty ? AppStrings.tr(language, 'other') : catKey[0].toUpperCase() + catKey.substring(1));
 
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12.0),
@@ -112,7 +121,7 @@ class CategoryBreakdownCard extends StatelessWidget {
                         ),
                         Text(
                           '${percentage.toStringAsFixed(1)}%',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 12, color: onSurfaceVariant, fontWeight: FontWeight.w500),
                         ),
                         const SizedBox(width: 8),
                         Text(

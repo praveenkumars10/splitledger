@@ -82,12 +82,13 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
-        title: const Text('Split & Settlement Hub'),
+        title: Text(AppStrings.tr(language, 'split_tab')),
       ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -105,7 +106,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
             members: groupMembers,
           );
 
-          final myName = currentUser.displayName ?? 'You';
+          final myName = currentUser.displayName ?? AppStrings.tr(language, 'you');
 
           // User's total spend for daily budget card
           final userSpend = periodTransactions
@@ -122,13 +123,13 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     ChoiceChip(
-                      label: const Text('All Time'),
+                      label: Text(AppStrings.tr(language, 'all_time')),
                       selected: _allTime,
                       onSelected: (selected) => setState(() => _allTime = selected),
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
-                      label: Text(_allTime ? 'Pick Month' : _monthFormat.format(_selectedMonth)),
+                      label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : _monthFormat.format(_selectedMonth)),
                       selected: !_allTime,
                       onSelected: (selected) {
                         if (selected) {
@@ -170,8 +171,10 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                     child: Column(
                       children: [
                         Text(
-                          _allTime ? 'Total Group Expense' : 'Total Group Expense (${_monthFormat.format(_selectedMonth)})',
-                          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                          _allTime
+                              ? AppStrings.tr(language, 'total_group_expense')
+                              : '${AppStrings.tr(language, 'total_group_expense')} (${_monthFormat.format(_selectedMonth)})',
+                          style: TextStyle(fontSize: 14, color: onSurfaceVariant),
                         ),
                         const SizedBox(height: 6),
                         Text(
@@ -197,7 +200,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                           return SizedBox(
                             width: cardWidth,
                             child: _buildBreakdownCard(
-                              title: '${b.name} Paid',
+                              title: '${b.name} ${AppStrings.tr(language, 'you_paid')}',
                               amount: b.paid,
                               color: color,
                             ),
@@ -208,11 +211,10 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                   ),
                 const SizedBox(height: 24),
 
-
                 // Settlement Section
                 Row(
                   children: [
-                    const Icon(Icons.handshake, color: Colors.teal),
+                    Icon(Icons.handshake, color: Theme.of(context).colorScheme.primary),
                     const SizedBox(width: 8),
                     Text(AppStrings.tr(language, 'settlements'), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ],
@@ -239,7 +241,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                         const SizedBox(height: 4),
                         Text(
                           AppStrings.tr(language, 'no_due_sub'),
-                          style: const TextStyle(fontSize: 13, color: Colors.grey),
+                          style: TextStyle(fontSize: 13, color: onSurfaceVariant),
                         ),
                       ],
                     ),
@@ -253,13 +255,6 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                         color: Theme.of(context).cardColor,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -301,8 +296,8 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                                 child: OutlinedButton.icon(
                                   style: OutlinedButton.styleFrom(
                                     padding: const EdgeInsets.symmetric(vertical: 8),
-                                    foregroundColor: Colors.deepPurple,
-                                    side: const BorderSide(color: Colors.deepPurple),
+                                    foregroundColor: Theme.of(context).colorScheme.primary,
+                                    side: BorderSide(color: Theme.of(context).colorScheme.primary),
                                   ),
                                   onPressed: () {
                                     UpiWhatsAppService.payViaUpi(
@@ -343,9 +338,9 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                           if (household != null)
                             FilledButton.tonal(
                               style: FilledButton.styleFrom(
-                                backgroundColor: Colors.green.shade50,
+                                backgroundColor: Colors.green.withValues(alpha: 0.15),
                                 foregroundColor: Colors.green.shade800,
-                                side: BorderSide(color: Colors.green.shade200),
+                                side: BorderSide(color: Colors.green.withValues(alpha: 0.3)),
                               ),
                               onPressed: () => _recordSettlement(s, household.id, currentUser.uid, myName),
                               child: Text('${AppStrings.tr(language, 'mark_paid')} ${_currencyFormat.format(s.amount)}'),

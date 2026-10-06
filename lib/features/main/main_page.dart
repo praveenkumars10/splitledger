@@ -28,7 +28,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     ReportsPage(),
   ];
 
-  void _showAddOptions() {
+  void _showAddOptions(AppLanguage language) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -51,22 +51,22 @@ class _MainPageState extends ConsumerState<MainPage> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Add Transaction',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              Text(
+                AppStrings.tr(language, 'add_transaction'),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               ListTile(
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade100,
+                    color: Colors.amber.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.bolt, color: Colors.amber, size: 24),
                 ),
-                title: const Text('1-Tap Quick Expense', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Add in 2 seconds with preset chips'),
+                title: Text(AppStrings.tr(language, 'quick_expense'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Add in 2 seconds with presets', style: TextStyle(fontSize: 12)),
                 onTap: () {
                   Navigator.pop(context);
                   QuickAddBottomSheet.show(context);
@@ -77,13 +77,13 @@ class _MainPageState extends ConsumerState<MainPage> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade100,
+                    color: Colors.red.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.arrow_upward, color: Colors.red, size: 24),
                 ),
-                title: const Text('You Paid (Full Details)', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Custom split percentages, bills, & recurrence'),
+                title: Text(AppStrings.tr(language, 'you_paid'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'spend_cash_out'), style: const TextStyle(fontSize: 12)),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.paid)));
@@ -93,13 +93,13 @@ class _MainPageState extends ConsumerState<MainPage> {
                 leading: Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: Colors.green.withValues(alpha: 0.15),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.arrow_downward, color: Colors.green, size: 24),
                 ),
-                title: const Text('You Received (Cash In)', style: TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: const Text('Record payments received from friends'),
+                title: Text(AppStrings.tr(language, 'you_received'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'receive_cash_in'), style: const TextStyle(fontSize: 12)),
                 onTap: () {
                   Navigator.pop(context);
                   Navigator.push(context, MaterialPageRoute(builder: (_) => const AddTransactionPage(type: TransactionType.received)));
@@ -127,8 +127,8 @@ class _MainPageState extends ConsumerState<MainPage> {
         backgroundColor: theme.colorScheme.primary,
         foregroundColor: theme.colorScheme.onPrimary,
         shape: const CircleBorder(),
-        tooltip: 'Add Transaction',
-        onPressed: _showAddOptions,
+        tooltip: AppStrings.tr(language, 'add_transaction'),
+        onPressed: () => _showAddOptions(language),
         child: const Icon(Icons.add, size: 30),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
@@ -197,7 +197,7 @@ class _MainPageState extends ConsumerState<MainPage> {
     final isSelected = _currentIndex == index;
     final color = isSelected
         ? Theme.of(context).colorScheme.primary
-        : Colors.grey.shade600;
+        : Theme.of(context).colorScheme.onSurfaceVariant;
 
     return InkWell(
       onTap: () => setState(() => _currentIndex = index),
@@ -230,4 +230,3 @@ class _MainPageState extends ConsumerState<MainPage> {
     );
   }
 }
-

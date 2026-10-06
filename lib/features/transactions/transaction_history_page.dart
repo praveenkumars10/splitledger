@@ -33,6 +33,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
   }
 
   void _showTransactionDetails(TransactionModel tx, bool isMe, String partnerName) {
+    final language = ref.read(languageControllerProvider);
     final isPaid = tx.type == TransactionType.paid;
     final amountColor = isPaid ? Colors.red.shade700 : Colors.green.shade700;
 
@@ -78,7 +79,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isPaid ? 'Expense (Paid)' : 'Income (Received)',
+                          isPaid ? AppStrings.tr(language, 'spend_cash_out') : AppStrings.tr(language, 'receive_cash_in'),
                           style: TextStyle(color: amountColor, fontWeight: FontWeight.bold, fontSize: 13),
                         ),
                         Text(
@@ -91,12 +92,12 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                 ],
               ),
               const Divider(height: 32),
-              _buildDetailRow('Description', tx.note?.isNotEmpty == true ? tx.note! : tx.category),
-              _buildDetailRow('Category', tx.category.toUpperCase()),
-              _buildDetailRow('Paid By', isMe ? 'You' : (tx.paidByName.isNotEmpty ? tx.paidByName : partnerName)),
-              _buildDetailRow('Date & Time', _dateFormat.format(tx.date)),
+              _buildDetailRow(AppStrings.tr(language, 'description'), tx.note?.isNotEmpty == true ? tx.note! : tx.category),
+              _buildDetailRow(AppStrings.tr(language, 'category'), tx.category.toUpperCase()),
+              _buildDetailRow(AppStrings.tr(language, 'by_header'), isMe ? AppStrings.tr(language, 'you') : (tx.paidByName.isNotEmpty ? tx.paidByName : partnerName)),
+              _buildDetailRow(AppStrings.tr(language, 'date_time'), _dateFormat.format(tx.date)),
               if (tx.recurrence != RecurrenceInterval.none)
-                _buildDetailRow('Recurring', tx.recurrence.name.toUpperCase()),
+                _buildDetailRow(AppStrings.tr(language, 'repeat'), tx.recurrence.name.toUpperCase()),
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -107,7 +108,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: const Icon(Icons.edit, size: 18),
-                      label: const Text('Edit'),
+                      label: Text(AppStrings.tr(language, 'edit')),
                       onPressed: () {
                         Navigator.pop(context);
                         Navigator.push(
@@ -132,7 +133,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       icon: const Icon(Icons.delete, size: 18),
-                      label: const Text('Delete'),
+                      label: Text(AppStrings.tr(language, 'delete')),
                       onPressed: () async {
                         final household = ref.read(currentHouseholdProvider).asData?.value;
                         if (household != null) {
@@ -140,7 +141,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                           await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Transaction deleted')),
+                              SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
                             );
                           }
                         }
@@ -157,12 +158,13 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
   }
 
   Widget _buildDetailRow(String label, String value) {
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+          Text(label, style: TextStyle(color: onSurfaceVariant, fontSize: 13)),
           Text(value, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         ],
       ),
@@ -175,6 +177,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Scaffold(
       appBar: AppBar(
@@ -205,7 +208,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                 contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 16),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: Theme.of(context).dividerColor),
                 ),
               ),
               onChanged: (val) => setState(() => _searchQuery = val.trim().toLowerCase()),
@@ -275,11 +278,13 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.receipt_long_outlined, size: 64, color: Colors.grey.shade400),
+                        Icon(Icons.receipt_long_outlined, size: 64, color: onSurfaceVariant.withValues(alpha: 0.5)),
                         const SizedBox(height: 12),
                         Text(
-                          _searchQuery.isNotEmpty ? 'No transactions matching "$_searchQuery"' : 'No transactions recorded yet.',
-                          style: const TextStyle(color: Colors.grey, fontSize: 14),
+                          _searchQuery.isNotEmpty
+                              ? '${AppStrings.tr(language, 'no_matching_tx')} "$_searchQuery"'
+                              : AppStrings.tr(language, 'no_transactions_yet'),
+                          style: TextStyle(color: onSurfaceVariant, fontSize: 14),
                         ),
                       ],
                     ),
@@ -299,23 +304,23 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                     final isPaid = tx.type == TransactionType.paid;
                     final amountColor = isPaid ? Colors.red.shade700 : Colors.green.shade700;
                     final sign = isPaid ? '-' : '+';
-                    final title = tx.note?.isNotEmpty == true ? tx.note! : (tx.category.isEmpty ? 'General' : tx.category[0].toUpperCase() + tx.category.substring(1));
+                    final title = tx.note?.isNotEmpty == true ? tx.note! : (tx.category.isEmpty ? AppStrings.tr(language, 'other') : tx.category[0].toUpperCase() + tx.category.substring(1));
 
                     return Dismissible(
                       key: ValueKey(tx.id),
                       direction: DismissDirection.horizontal,
                       background: Container(
                         decoration: BoxDecoration(
-                          color: Colors.blue.shade600,
+                          color: Theme.of(context).colorScheme.primary,
                           borderRadius: BorderRadius.circular(12),
                         ),
                         alignment: Alignment.centerLeft,
                         padding: const EdgeInsets.only(left: 20),
-                        child: const Row(
+                        child: Row(
                           children: [
-                            Icon(Icons.edit, color: Colors.white),
-                            SizedBox(width: 8),
-                            Text('Edit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            const Icon(Icons.edit, color: Colors.white),
+                            const SizedBox(width: 8),
+                            Text(AppStrings.tr(language, 'edit'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                           ],
                         ),
                       ),
@@ -326,12 +331,12 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                         ),
                         alignment: Alignment.centerRight,
                         padding: const EdgeInsets.only(right: 20),
-                        child: const Row(
+                        child: Row(
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                            SizedBox(width: 8),
-                            Icon(Icons.delete, color: Colors.white),
+                            Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 8),
+                            const Icon(Icons.delete, color: Colors.white),
                           ],
                         ),
                       ),
@@ -353,17 +358,17 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                           return await showDialog<bool>(
                             context: context,
                             builder: (context) => AlertDialog(
-                              title: const Text('Delete Transaction?'),
-                              content: Text('Are you sure you want to delete "${_currencyFormat.format(tx.amount)}" ($title)?'),
+                              title: Text(AppStrings.tr(language, 'delete_tx_title')),
+                              content: Text('${AppStrings.tr(language, 'delete_tx_confirm')}\n"${_currencyFormat.format(tx.amount)}" ($title)'),
                               actions: [
                                 TextButton(
                                   onPressed: () => Navigator.pop(context, false),
-                                  child: const Text('Cancel'),
+                                  child: Text(AppStrings.tr(language, 'cancel')),
                                 ),
                                 FilledButton(
                                   style: FilledButton.styleFrom(backgroundColor: Colors.red),
                                   onPressed: () => Navigator.pop(context, true),
-                                  child: const Text('Delete'),
+                                  child: Text(AppStrings.tr(language, 'delete')),
                                 ),
                               ],
                             ),
@@ -375,7 +380,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                           await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Transaction deleted')),
+                              SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
                             );
                           }
                         }
@@ -402,8 +407,8 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          '${isMe ? "You" : shortName(tx.paidByName)} • ${_dateFormat.format(tx.date)}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          '${isMe ? AppStrings.tr(language, "you") : shortName(tx.paidByName)} • ${_dateFormat.format(tx.date)}',
+                          style: TextStyle(fontSize: 12, color: onSurfaceVariant),
                         ),
                         trailing: Text(
                           '$sign${_currencyFormat.format(tx.amount)}',

@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
-class DailyBudgetCard extends StatelessWidget {
+import '../../../core/localization/app_strings.dart';
+import '../../../core/localization/language_controller.dart';
+
+class DailyBudgetCard extends ConsumerWidget {
   final double walletAmount;
   final double userTotalSpend;
   final VoidCallback? onSetWalletTap;
@@ -14,7 +18,8 @@ class DailyBudgetCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final language = ref.watch(languageControllerProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final now = DateTime.now();
     final lastDay = DateTime(now.year, now.month + 1, 0).day;
@@ -30,22 +35,24 @@ class DailyBudgetCard extends StatelessWidget {
     IconData statusIcon;
 
     if (!isConfigured) {
-      statusColor = Colors.grey.shade600;
-      statusText = 'Set Wallet to calculate daily budget';
+      statusColor = Theme.of(context).colorScheme.primary;
+      statusText = AppStrings.tr(language, 'set_wallet_target');
       statusIcon = Icons.info_outline;
     } else if (remaining <= 0) {
       statusColor = Colors.red.shade600;
-      statusText = 'Over budget for this month';
+      statusText = AppStrings.tr(language, 'over_budget');
       statusIcon = Icons.warning_amber_rounded;
     } else if (dailyBudget < 100) {
       statusColor = Colors.orange.shade700;
-      statusText = 'Tight Budget: Spend carefully';
+      statusText = AppStrings.tr(language, 'tight_budget');
       statusIcon = Icons.speed_rounded;
     } else {
       statusColor = const Color(0xFF0F766E);
-      statusText = 'On Track: Healthy budget';
+      statusText = AppStrings.tr(language, 'on_track');
       statusIcon = Icons.check_circle_outline;
     }
+
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Card(
       elevation: 1,
@@ -84,13 +91,13 @@ class DailyBudgetCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Daily Spend Target',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                      Text(
+                        AppStrings.tr(language, 'daily_spend_target'),
+                        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '$daysLeft days left in ${DateFormat('MMMM').format(now)}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        '$daysLeft ${AppStrings.tr(language, 'days_left_in')} ${DateFormat('MMMM').format(now)}',
+                        style: TextStyle(fontSize: 12, color: onSurfaceVariant),
                       ),
                     ],
                   ),
@@ -103,7 +110,7 @@ class DailyBudgetCard extends StatelessWidget {
                     ),
                     onPressed: onSetWalletTap,
                     icon: const Icon(Icons.edit, size: 14),
-                    label: const Text('Wallet', style: TextStyle(fontSize: 12)),
+                    label: Text(AppStrings.tr(language, 'wallet'), style: const TextStyle(fontSize: 12)),
                   ),
               ],
             ),
@@ -121,10 +128,10 @@ class DailyBudgetCard extends StatelessWidget {
                       Expanded(
                         child: Text(
                           statusText,
-                          style: TextStyle(fontSize: 13, color: statusColor, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 13, color: statusColor, fontWeight: FontWeight.w600),
                         ),
                       ),
-                      const Icon(Icons.chevron_right, size: 18, color: Colors.grey),
+                      Icon(Icons.chevron_right, size: 18, color: onSurfaceVariant),
                     ],
                   ),
                 ),
@@ -145,29 +152,35 @@ class DailyBudgetCard extends StatelessWidget {
                           color: statusColor,
                         ),
                       ),
-                      const Text(
-                        'per day safe spend',
-                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      Text(
+                        AppStrings.tr(language, 'safe_spend_per_day'),
+                        style: TextStyle(fontSize: 12, color: onSurfaceVariant),
                       ),
                     ],
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: statusColor.withValues(alpha: 0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(statusIcon, size: 14, color: statusColor),
-                        const SizedBox(width: 6),
-                        Text(
-                          statusText,
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
-                        ),
-                      ],
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: statusColor.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(statusIcon, size: 14, color: statusColor),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: Text(
+                              statusText,
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],

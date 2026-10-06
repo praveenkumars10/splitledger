@@ -42,7 +42,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   double? _minAmount;
   double? _maxAmount;
 
-  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '\u20B9');
+  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final _monthFormat = DateFormat('MMM yyyy');
   final _dateFormat = DateFormat('dd MMM, hh:mm a');
 
@@ -92,23 +92,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _showKeywordSearch() {
+    final language = ref.read(languageControllerProvider);
     final controller = TextEditingController(text: _keyword ?? '');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Search'),
+        title: Text(AppStrings.tr(language, 'search_title')),
         content: TextField(
           controller: controller,
-          decoration: const InputDecoration(
-            hintText: 'Search notes, category or name',
-            border: OutlineInputBorder(),
+          decoration: InputDecoration(
+            hintText: AppStrings.tr(language, 'search_hint'),
+            border: const OutlineInputBorder(),
           ),
           autofocus: true,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.tr(language, 'cancel')),
           ),
           FilledButton(
             onPressed: () {
@@ -118,7 +119,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 setState(() => _keyword = query.isEmpty ? null : query);
               }
             },
-            child: const Text('Search'),
+            child: Text(AppStrings.tr(language, 'search_title')),
           ),
         ],
       ),
@@ -126,37 +127,38 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _showWalletDialog(double currentAmount, String uid) {
+    final language = ref.read(languageControllerProvider);
     final controller = TextEditingController(
       text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
     );
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.account_balance_wallet, color: Colors.deepPurple),
-            SizedBox(width: 8),
-            Text('Wallet Amount'),
+            Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(AppStrings.tr(language, 'wallet_amount')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter your total budget/cash balance:',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
+            Text(
+              AppStrings.tr(language, 'wallet_desc'),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Wallet Amount',
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'wallet_amount'),
                 hintText: 'e.g. 2000 or 2k',
-                prefixText: '\u20B9 ',
-                border: OutlineInputBorder(),
+                prefixText: '₹ ',
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -169,8 +171,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     padding: const EdgeInsets.only(right: 6.0),
                     child: ActionChip(
                       label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                      backgroundColor: Colors.deepPurple.shade50,
-                      side: BorderSide(color: Colors.deepPurple.shade200),
+                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
                       onPressed: () {
                         controller.text = preset.toString();
                       },
@@ -184,7 +186,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.tr(language, 'cancel')),
           ),
           FilledButton(
             onPressed: () async {
@@ -194,7 +196,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 final numPart = double.tryParse(raw.replaceAll('k', '').trim());
                 if (numPart != null) parsed = numPart * 1000;
               } else {
-                parsed = double.tryParse(raw);
+                final clean = raw.replaceAll(',', '').trim();
+                parsed = double.tryParse(clean);
               }
               if (parsed != null && parsed >= 0) {
                 final messenger = ScaffoldMessenger.of(context);
@@ -202,7 +205,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 try {
                   await ref.read(walletRepositoryProvider).setWalletAmount(uid, parsed);
                   messenger.showSnackBar(
-                    SnackBar(content: Text('Wallet set to ${_currencyFormat.format(parsed)}')),
+                    SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
                   );
                 } catch (e) {
                   messenger.showSnackBar(
@@ -215,7 +218,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 );
               }
             },
-            child: const Text('Save'),
+            child: Text(AppStrings.tr(language, 'save')),
           ),
         ],
       ),
@@ -223,14 +226,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _showSettleUpDialog(GroupSplitResult split, String householdId, String currentUid, String currentName) {
+    final language = ref.read(languageControllerProvider);
     if (split.settlements.isEmpty) {
       showDialog(
         context: context,
         builder: (context) => AlertDialog(
-          title: const Text('All Settled Up! 🎉'),
-          content: const Text('There are no pending dues. Everyone is balanced.'),
+          title: Text(AppStrings.tr(language, 'no_due')),
+          content: Text(AppStrings.tr(language, 'no_due_sub')),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.tr(language, 'done'))),
           ],
         ),
       );
@@ -240,11 +244,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.handshake_outlined, color: Colors.green),
-            SizedBox(width: 8),
-            Text('Settle Up'),
+            Icon(Icons.handshake_outlined, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(AppStrings.tr(language, 'settle_up')),
           ],
         ),
         content: SingleChildScrollView(
@@ -252,22 +256,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Pending settlements:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(AppStrings.tr(language, 'settlements'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 8),
               ...split.settlements.map((s) {
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: Theme.of(context).dividerColor),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${s.from} owes ${s.to} ${_currencyFormat.format(s.amount)}',
+                        '${s.from} ➔ ${s.to} : ${_currencyFormat.format(s.amount)}',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                       ),
                       const SizedBox(height: 8),
@@ -278,8 +282,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             child: OutlinedButton.icon(
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(vertical: 6),
-                                foregroundColor: Colors.deepPurple,
-                                side: const BorderSide(color: Colors.deepPurple),
+                                foregroundColor: Theme.of(context).colorScheme.primary,
+                                side: BorderSide(color: Theme.of(context).colorScheme.primary),
                                 visualDensity: VisualDensity.compact,
                               ),
                               onPressed: () {
@@ -291,7 +295,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 );
                               },
                               icon: const Icon(Icons.account_balance, size: 14),
-                              label: const Text('UPI Pay', style: TextStyle(fontSize: 11)),
+                              label: Text(AppStrings.tr(language, 'pay_upi'), style: const TextStyle(fontSize: 11)),
                             ),
                           ),
                           const SizedBox(width: 6),
@@ -311,7 +315,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 );
                               },
                               icon: const Icon(Icons.chat, size: 14),
-                              label: const Text('WhatsApp', style: TextStyle(fontSize: 11)),
+                              label: Text(AppStrings.tr(language, 'remind_whatsapp'), style: const TextStyle(fontSize: 11)),
                             ),
                           ),
                         ],
@@ -352,7 +356,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               );
                             }
                           },
-                          child: Text('Record ${_currencyFormat.format(s.amount)} Payment'),
+                          child: Text('${AppStrings.tr(language, 'mark_paid')} ${_currencyFormat.format(s.amount)}'),
                         ),
                       ),
                     ],
@@ -363,7 +367,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Close')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(AppStrings.tr(language, 'close'))),
         ],
       ),
     );
@@ -402,6 +406,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _showAmountFilter() {
+    final language = ref.read(languageControllerProvider);
     final minController = TextEditingController(
       text: _minAmount != null ? _minAmount!.toStringAsFixed(0) : '',
     );
@@ -411,25 +416,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Filter by Amount'),
+        title: Text(AppStrings.tr(language, 'filter_by_amount')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: minController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Minimum',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'min_amount'),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: maxController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(
-                labelText: 'Maximum',
-                border: OutlineInputBorder(),
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'max_amount'),
+                border: const OutlineInputBorder(),
               ),
             ),
           ],
@@ -443,24 +448,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               });
               Navigator.pop(context);
             },
-            child: const Text('Clear'),
+            child: Text(AppStrings.tr(language, 'clear_filter')),
           ),
           FilledButton(
             onPressed: () {
               Navigator.pop(context);
-              if (mounted) {
-                setState(() {
-                  _minAmount = double.tryParse(minController.text) ?? _minAmount;
-                  _maxAmount = double.tryParse(maxController.text) ?? _maxAmount;
-                  if (_minAmount != null && _maxAmount != null && _minAmount! > _maxAmount!) {
-                    final temp = _minAmount;
-                    _minAmount = _maxAmount;
-                    _maxAmount = temp;
-                  }
-                });
-              }
+              setState(() {
+                _minAmount = double.tryParse(minController.text.trim());
+                _maxAmount = double.tryParse(maxController.text.trim());
+              });
             },
-            child: const Text('Apply'),
+            child: Text(AppStrings.tr(language, 'apply_filter')),
           ),
         ],
       ),
@@ -468,33 +466,34 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   void _shareSummary(GroupSplitResult split) {
-    SharePlus.instance.share(
-      ShareParams(
-        text: 'SplitLedger Summary\n\n'
-            'Total Expense: ${_currencyFormat.format(split.totalExpense)}\n'
-            'Settlements:\n${split.settlements.isEmpty ? 'No due. All settled up!' : split.settlements.map((s) => s.toString()).join('\n')}',
-      ),
-    );
+    if (split.settlements.isEmpty) {
+      SharePlus.instance.share(
+        ShareParams(text: 'SplitLedger Summary: All expenses settled up! No dues pending 🎉'),
+      );
+    } else {
+      final buffer = StringBuffer('📊 SplitLedger Settlement Summary:\n\n');
+      for (final s in split.settlements) {
+        buffer.writeln('• ${s.from} owes ${s.to}: ₹${s.amount.toStringAsFixed(0)}');
+      }
+      SharePlus.instance.share(ShareParams(text: buffer.toString()));
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final transactionsAsync = ref.watch(currentTransactionsProvider);
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final transactionsAsync = ref.watch(currentTransactionsProvider);
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     String partnerName = 'Partner';
-    int totalMembers = 2;
     if (household != null && currentUser != null) {
-      totalMembers = household.members.length;
-      if (totalMembers > 2) {
-        partnerName = 'Group';
-      } else {
-        final partner = household.members.where((m) => m.uid != currentUser.uid).firstOrNull;
-        if (partner != null) partnerName = shortName(partner.name);
+      final partner = household.members.where((m) => m.uid != currentUser.uid).firstOrNull;
+      if (partner != null) {
+        partnerName = shortName(partner.name);
       }
     }
 
@@ -531,14 +530,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               ),
             ),
             ListTile(
-              leading: const Icon(Icons.account_balance_wallet, color: Colors.deepPurple),
-              title: const Text('Wallet'),
+              leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+              title: Text(AppStrings.tr(language, 'wallet')),
               subtitle: Text(
                 walletAmount > 0
                     ? _currencyFormat.format(walletAmount)
-                    : 'Tap to set initial amount (e.g. 2000)',
+                    : AppStrings.tr(language, 'wallet_not_set'),
                 style: TextStyle(
-                  color: walletAmount > 0 ? Colors.black87 : Colors.grey,
+                  color: walletAmount > 0 ? Theme.of(context).colorScheme.onSurface : onSurfaceVariant,
                   fontWeight: walletAmount > 0 ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
@@ -552,23 +551,23 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             ListTile(
               leading: const Icon(Icons.handshake_outlined, color: Colors.green),
-              title: const Text('Settle Up'),
+              title: Text(AppStrings.tr(language, 'settle_up')),
               subtitle: Text(
                 currentSplit.settlements.isEmpty
-                    ? 'All settled up'
-                    : '${currentSplit.settlements.length} dues pending',
+                    ? AppStrings.tr(language, 'no_due')
+                    : '${currentSplit.settlements.length} ${AppStrings.tr(language, 'dues_pending')}',
                 style: const TextStyle(fontSize: 12),
               ),
               onTap: () {
                 Navigator.pop(context);
                 if (household != null && currentUser != null) {
-                  _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? 'You');
+                  _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? AppStrings.tr(language, 'you'));
                 }
               },
             ),
             ListTile(
               leading: const Icon(Icons.pie_chart),
-              title: const Text('Split Summary'),
+              title: Text(AppStrings.tr(language, 'split_tab')),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const SplitSummaryPage()));
@@ -576,7 +575,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             ListTile(
               leading: const Icon(Icons.table_chart_outlined),
-              title: const Text('Export CSV / Excel'),
+              title: Text(AppStrings.tr(language, 'export_csv')),
               onTap: () {
                 Navigator.pop(context);
                 _exportCsv(allTransactions, household?.name ?? 'Household');
@@ -584,7 +583,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             ListTile(
               leading: const Icon(Icons.settings),
-              title: const Text('Settings'),
+              title: Text(AppStrings.tr(language, 'settings_tab')),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsPage()));
@@ -592,7 +591,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             ListTile(
               leading: const Icon(Icons.share),
-              title: const Text('Share App'),
+              title: Text(AppStrings.tr(language, 'share_app')),
               onTap: () {
                 Navigator.pop(context);
                 SharePlus.instance.share(
@@ -605,25 +604,25 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text('Logout', style: TextStyle(color: Colors.red)),
+              title: Text(AppStrings.tr(language, 'logout'), style: const TextStyle(color: Colors.red)),
               onTap: () {
                 Navigator.pop(context); // close drawer
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Logout'),
-                    content: const Text('Are you sure you want to logout?'),
+                    title: Text(AppStrings.tr(language, 'logout')),
+                    content: Text(AppStrings.tr(language, 'logout_confirm')),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(AppStrings.tr(language, 'cancel')),
                       ),
                       TextButton(
                         onPressed: () async {
                           Navigator.pop(context);
                           await ref.read(authControllerProvider).signOut();
                         },
-                        child: const Text('Logout', style: TextStyle(color: Colors.red)),
+                        child: Text(AppStrings.tr(language, 'logout'), style: const TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
@@ -652,14 +651,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             onPressed: () => QuickAddBottomSheet.show(context),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Filter Options',
-            child: const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12.0),
+            tooltip: AppStrings.tr(language, 'filter_options'),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
                 children: [
-                  Icon(Icons.filter_list),
-                  SizedBox(width: 4),
-                  Text('Options'),
+                  const Icon(Icons.filter_list),
+                  const SizedBox(width: 4),
+                  Text(AppStrings.tr(language, 'filter_options')),
                 ],
               ),
             ),
@@ -672,7 +671,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   break;
                 case 'Settle Up':
                   if (household != null && currentUser != null) {
-                    _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? 'You');
+                    _showSettleUpDialog(currentSplit, household.id, currentUser.uid, currentUser.displayName ?? AppStrings.tr(language, 'you'));
                   }
                   break;
                 case 'Export CSV':
@@ -699,24 +698,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(value: 'Wallet', child: Row(children: [Icon(Icons.account_balance_wallet, size: 18), SizedBox(width: 8), Text('Wallet / Set Amount')])),
-              const PopupMenuItem(value: 'Settle Up', child: Row(children: [Icon(Icons.handshake_outlined, size: 18, color: Colors.green), SizedBox(width: 8), Text('Settle Up')])),
-              const PopupMenuItem(value: 'Export CSV', child: Row(children: [Icon(Icons.table_chart_outlined, size: 18), SizedBox(width: 8), Text('Export CSV / Excel')])),
+              PopupMenuItem(value: 'Wallet', child: Row(children: [const Icon(Icons.account_balance_wallet, size: 18), const SizedBox(width: 8), Text(AppStrings.tr(language, 'wallet_amount'))])),
+              PopupMenuItem(value: 'Settle Up', child: Row(children: [const Icon(Icons.handshake_outlined, size: 18, color: Colors.green), const SizedBox(width: 8), Text(AppStrings.tr(language, 'settle_up'))])),
+              PopupMenuItem(value: 'Export CSV', child: Row(children: [const Icon(Icons.table_chart_outlined, size: 18), const SizedBox(width: 8), Text(AppStrings.tr(language, 'export_csv'))])),
               if (_rangeStart != null && _rangeEnd != null)
                 PopupMenuItem(
                   value: 'Clear Range',
-                  child: Text('Clear range (${DateFormat('dd MMM').format(_rangeStart!)} - ${DateFormat('dd MMM').format(_rangeEnd!)})'),
+                  child: Text('${AppStrings.tr(language, 'clear_filter')} (${DateFormat('dd MMM').format(_rangeStart!)} - ${DateFormat('dd MMM').format(_rangeEnd!)})'),
                   onTap: () => setState(() {
                     _rangeStart = null;
                     _rangeEnd = null;
                   }),
                 ),
-              const PopupMenuItem(value: 'Select Date Range', child: Text('Select Date Range')),
-              const PopupMenuItem(value: 'Keyword Search', child: Text('Keyword Search')),
-              const PopupMenuItem(value: 'Amount', child: Text('Amount')),
-              const PopupMenuItem(value: 'Share', child: Text('Share')),
-              const PopupMenuItem(value: 'Report', child: Text('Report')),
-              const PopupMenuItem(value: 'Split Summary', child: Text('Split Summary')),
+              PopupMenuItem(value: 'Keyword Search', child: Text(AppStrings.tr(language, 'search_title'))),
+              PopupMenuItem(value: 'Amount', child: Text(AppStrings.tr(language, 'filter_by_amount'))),
+              PopupMenuItem(value: 'Report', child: Text(AppStrings.tr(language, 'reports_tab'))),
+              PopupMenuItem(value: 'Split Summary', child: Text(AppStrings.tr(language, 'split_tab'))),
             ],
           ),
         ],
@@ -759,14 +756,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
-                  children: ['All', 'Daily', 'Weekly', 'Monthly', 'Yearly'].map((filter) {
-                    final isSelected = _selectedTimeFilter == filter;
+                  children: [
+                    ('All', AppStrings.tr(language, 'all_time')),
+                    ('Daily', AppStrings.tr(language, 'daily')),
+                    ('Weekly', AppStrings.tr(language, 'weekly')),
+                    ('Monthly', AppStrings.tr(language, 'monthly')),
+                    ('Yearly', AppStrings.tr(language, 'yearly')),
+                  ].map((filterItem) {
+                    final filterKey = filterItem.$1;
+                    final filterLabel = filterItem.$2;
+                    final isSelected = _selectedTimeFilter == filterKey;
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
                       child: InkWell(
                         onTap: () => setState(() {
-                          _selectedTimeFilter = filter;
-                          if (filter != 'Monthly') {
+                          _selectedTimeFilter = filterKey;
+                          if (filterKey != 'Monthly') {
                             _selectedMonth = DateTime.now();
                           }
                         }),
@@ -778,7 +783,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             border: Border.all(color: Colors.white),
                           ),
                           child: Text(
-                            filter,
+                            filterLabel,
                             style: TextStyle(
                               color: isSelected ? Theme.of(context).colorScheme.primary : Colors.white,
                               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
@@ -797,8 +802,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 child: Row(
                   children: (() {
                     final options = [
-                      {'id': 'all', 'label': 'All'},
-                      {'id': 'me', 'label': 'Me'},
+                      {'id': 'all', 'label': AppStrings.tr(language, 'all_time')},
+                      {'id': 'me', 'label': AppStrings.tr(language, 'you')},
                     ];
                     
                     if (household != null && currentUser != null) {
@@ -815,7 +820,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         }
                       }
                     } else {
-                       options.add({'id': 'group', 'label': "Partner"});
+                       options.add({'id': 'group', 'label': partnerName});
                     }
 
                     return options.map((option) {
@@ -905,12 +910,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
           if (walletAmount > 0) {
             remainingBalance = walletAmount - totalPaid + totalReceived;
-            balanceSubtext = 'Remaining';
+            balanceSubtext = AppStrings.tr(language, 'your_balance');
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           } else {
             remainingBalance = net;
-            balanceSubtext = net.abs() < 0.01 ? 'No due' : (net > 0 ? '(Get)' : '(Owe)');
-            balanceColor = net > 0 ? Colors.green.shade700 : (net < -0.01 ? Colors.red.shade700 : Colors.grey.shade700);
+            balanceSubtext = net.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : (net > 0 ? '(Get)' : '(Owe)');
+            balanceColor = net > 0 ? Colors.green.shade700 : (net < -0.01 ? Colors.red.shade700 : onSurfaceVariant);
           }
 
           return Column(
@@ -924,7 +929,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     spacing: 8,
                     children: [
                       if (_keyword != null)
-                        _buildFilterChip('Search: $_keyword', () => setState(() => _keyword = null)),
+                        _buildFilterChip('${AppStrings.tr(language, 'search_title')}: $_keyword', () => setState(() => _keyword = null)),
                       if (_rangeStart != null && _rangeEnd != null)
                         _buildFilterChip(
                           '${DateFormat('dd MMM').format(_rangeStart!)} - ${DateFormat('dd MMM').format(_rangeEnd!)}',
@@ -948,11 +953,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               Container(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
-                child: const Row(
+                child: Row(
                   children: [
-                    Expanded(flex: 4, child: Text('Notes', style: TextStyle(fontWeight: FontWeight.bold))),
-                    Expanded(flex: 3, child: Text('Amount', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                    Expanded(flex: 2, child: Text('By', style: TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                    Expanded(flex: 4, child: Text(AppStrings.tr(language, 'notes_category_header'), style: const TextStyle(fontWeight: FontWeight.bold))),
+                    Expanded(flex: 3, child: Text(AppStrings.tr(language, 'amount_header'), style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'by_header'), style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
                   ],
                 ),
               ),
@@ -963,9 +968,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.receipt_long_outlined, size: 56, color: Colors.grey.shade400),
+                            Icon(Icons.receipt_long_outlined, size: 56, color: onSurfaceVariant.withValues(alpha: 0.5)),
                             const SizedBox(height: 8),
-                            const Text('No transactions match the filters.', style: TextStyle(color: Colors.grey)),
+                            Text(AppStrings.tr(language, 'no_matching_tx'), style: TextStyle(color: onSurfaceVariant)),
                           ],
                         ),
                       )
@@ -979,7 +984,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           final color = isPaid ? Colors.red.shade700 : Colors.green.shade700;
                           final titleText = (tx.note != null && tx.note!.trim().isNotEmpty)
                               ? tx.note!.trim()
-                              : (tx.category.isNotEmpty ? tx.category : 'General');
+                              : (tx.category.isNotEmpty ? tx.category : AppStrings.tr(language, 'other'));
 
                           return Dismissible(
                             key: ValueKey(tx.id),
@@ -988,12 +993,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               color: Colors.red.shade600,
                               alignment: Alignment.centerRight,
                               padding: const EdgeInsets.only(right: 16),
-                              child: const Row(
+                              child: Row(
                                 mainAxisAlignment: MainAxisAlignment.end,
                                 children: [
-                                  Icon(Icons.delete, color: Colors.white),
-                                  SizedBox(width: 4),
-                                  Text('Delete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                  const Icon(Icons.delete, color: Colors.white),
+                                  const SizedBox(width: 4),
+                                  Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ],
                               ),
                             ),
@@ -1001,17 +1006,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               return await showDialog<bool>(
                                 context: context,
                                 builder: (context) => AlertDialog(
-                                  title: const Text('Delete transaction?'),
-                                  content: Text('Are you sure you want to delete this ${_currencyFormat.format(tx.amount)} transaction?'),
+                                  title: Text(AppStrings.tr(language, 'delete_tx_title')),
+                                  content: Text('${AppStrings.tr(language, 'delete_tx_confirm')}\n"${_currencyFormat.format(tx.amount)}" ($titleText)'),
                                   actions: [
                                     TextButton(
                                       onPressed: () => Navigator.pop(context, false),
-                                      child: const Text('Cancel'),
+                                      child: Text(AppStrings.tr(language, 'cancel')),
                                     ),
                                     FilledButton(
                                       style: FilledButton.styleFrom(backgroundColor: Colors.red),
                                       onPressed: () => Navigator.pop(context, true),
-                                      child: const Text('Delete'),
+                                      child: Text(AppStrings.tr(language, 'delete')),
                                     ),
                                   ],
                                 ),
@@ -1023,7 +1028,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text('Transaction deleted')),
+                                    SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
                                   );
                                 }
                               } catch (e) {
@@ -1075,10 +1080,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                               children: [
                                                 Text(
                                                   titleText,
-                                                  style: const TextStyle(
+                                                  style: TextStyle(
                                                     fontSize: 14,
                                                     fontWeight: FontWeight.w600,
-                                                    color: Colors.black87,
+                                                    color: Theme.of(context).colorScheme.onSurface,
                                                   ),
                                                   maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
@@ -1088,7 +1093,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                                   _dateFormat.format(tx.date),
                                                   style: TextStyle(
                                                     fontSize: 11,
-                                                    color: Colors.grey.shade600,
+                                                    color: onSurfaceVariant,
                                                   ),
                                                 ),
                                               ],
@@ -1114,12 +1119,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                     Expanded(
                                       flex: 2,
                                       child: Text(
-                                        isMe ? 'You' : partnerName,
+                                        isMe ? AppStrings.tr(language, 'you') : partnerName,
                                         textAlign: TextAlign.right,
                                         style: TextStyle(
                                           fontSize: 12,
                                           fontWeight: isMe ? FontWeight.w600 : FontWeight.normal,
-                                          color: isMe ? Theme.of(context).colorScheme.primary : Colors.black87,
+                                          color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
                                         ),
                                       ),
                                     ),
@@ -1209,7 +1214,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               // Footer
               Container(
                 decoration: BoxDecoration(
-                  border: Border(top: BorderSide(color: Colors.grey.shade300)),
+                  border: Border(top: BorderSide(color: Theme.of(context).dividerColor)),
                   color: Theme.of(context).colorScheme.surface,
                 ),
                 child: IntrinsicHeight(
@@ -1233,15 +1238,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                       fit: BoxFit.scaleDown,
                                       child: Text(
                                         AppStrings.tr(language, 'wallet'),
-                                        style: const TextStyle(
-                                          color: Colors.deepPurple,
+                                        style: TextStyle(
+                                          color: Theme.of(context).colorScheme.primary,
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
                                         ),
                                       ),
                                     ),
                                     const SizedBox(width: 2),
-                                    Icon(Icons.edit, size: 11, color: Colors.deepPurple.shade400),
+                                    Icon(Icons.edit, size: 11, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
@@ -1250,9 +1255,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   child: Text(
                                     preferences.isPrivacyMode
                                         ? '₹••••'
-                                        : (walletAmount > 0 ? _currencyFormat.format(walletAmount) : 'Set \u20B9'),
+                                        : (walletAmount > 0 ? _currencyFormat.format(walletAmount) : 'Set ₹'),
                                     style: TextStyle(
-                                      color: walletAmount > 0 ? Colors.deepPurple.shade700 : Colors.deepPurple.shade300,
+                                      color: walletAmount > 0 ? Theme.of(context).colorScheme.primary : onSurfaceVariant,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 11,
                                     ),
@@ -1263,7 +1268,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ),
                         ),
                       ),
-                      VerticalDivider(color: Colors.grey.shade300, width: 1),
+                      VerticalDivider(color: Theme.of(context).dividerColor, width: 1),
                       // 2. Total Received
                       Expanded(
                         child: Padding(
@@ -1291,7 +1296,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ),
                         ),
                       ),
-                      VerticalDivider(color: Colors.grey.shade300, width: 1),
+                      VerticalDivider(color: Theme.of(context).dividerColor, width: 1),
                       // 3. Total Paid
                       Expanded(
                         child: Padding(
@@ -1319,7 +1324,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ),
                         ),
                       ),
-                      VerticalDivider(color: Colors.grey.shade300, width: 1),
+                      VerticalDivider(color: Theme.of(context).dividerColor, width: 1),
                       // 4. Your Balance (Remaining)
                       Expanded(
                         child: InkWell(
@@ -1349,7 +1354,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                         ? '₹••••'
                                         : (walletAmount > 0
                                             ? _currencyFormat.format(remainingBalance)
-                                            : (net.abs() < 0.01 ? 'No due' : '\u20B9${net.abs().toStringAsFixed(0)}')),
+                                            : (net.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : '₹${net.abs().toStringAsFixed(0)}')),
                                     style: TextStyle(
                                       color: balanceColor,
                                       fontWeight: FontWeight.bold,

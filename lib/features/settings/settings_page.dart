@@ -19,6 +19,7 @@ class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
   void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
+    final language = ref.read(languageControllerProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final controller = TextEditingController(
       text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
@@ -26,31 +27,31 @@ class SettingsPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.account_balance_wallet, color: Colors.deepPurple),
-            SizedBox(width: 8),
-            Text('Wallet Amount'),
+            Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 8),
+            Text(AppStrings.tr(language, 'wallet_amount')),
           ],
         ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Enter the total amount in your wallet/bank (e.g. 2000 or 2k):',
-              style: TextStyle(fontSize: 13, color: Colors.black87),
+            Text(
+              AppStrings.tr(language, 'wallet_desc'),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: controller,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Wallet Amount',
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'wallet_amount'),
                 hintText: 'e.g. 2000',
                 prefixText: '₹ ',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -63,8 +64,8 @@ class SettingsPage extends ConsumerWidget {
                     padding: const EdgeInsets.only(right: 6.0),
                     child: ActionChip(
                       label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                      backgroundColor: Colors.deepPurple.shade50,
-                      side: BorderSide(color: Colors.deepPurple.shade200),
+                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
                       onPressed: () {
                         controller.text = preset.toString();
                       },
@@ -78,7 +79,7 @@ class SettingsPage extends ConsumerWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(AppStrings.tr(language, 'cancel')),
           ),
           FilledButton(
             onPressed: () async {
@@ -96,7 +97,7 @@ class SettingsPage extends ConsumerWidget {
                   await ref.read(walletRepositoryProvider).setWalletAmount(uid, parsed);
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Wallet set to ${currencyFormat.format(parsed)}')),
+                      SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${currencyFormat.format(parsed)}')),
                     );
                   }
                 } catch (e) {
@@ -114,7 +115,7 @@ class SettingsPage extends ConsumerWidget {
                 }
               }
             },
-            child: const Text('Save'),
+            child: Text(AppStrings.tr(language, 'save')),
           ),
         ],
       ),
@@ -122,6 +123,7 @@ class SettingsPage extends ConsumerWidget {
   }
 
   void _showRestoreDialog(BuildContext context, WidgetRef ref, String householdId, String currentUid) {
+    final language = ref.read(languageControllerProvider);
     final textController = TextEditingController();
     bool replaceExisting = false;
 
@@ -129,11 +131,11 @@ class SettingsPage extends ConsumerWidget {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setState) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
-              Icon(Icons.restore, color: Colors.deepPurple),
-              SizedBox(width: 8),
-              Text('Restore Backup'),
+              Icon(Icons.restore, color: Theme.of(context).colorScheme.primary),
+              const SizedBox(width: 8),
+              Text(AppStrings.tr(language, 'restore_import')),
             ],
           ),
           content: SingleChildScrollView(
@@ -141,9 +143,9 @@ class SettingsPage extends ConsumerWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Paste your SplitLedger JSON backup content below:',
-                  style: TextStyle(fontSize: 13, color: Colors.black87),
+                Text(
+                  AppStrings.tr(language, 'restore_import_sub'),
+                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -158,7 +160,7 @@ class SettingsPage extends ConsumerWidget {
                 const SizedBox(height: 12),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.paste, size: 16),
-                  label: const Text('Paste from Clipboard'),
+                  label: Text(AppStrings.tr(language, 'paste_clipboard')),
                   onPressed: () async {
                     final data = await Clipboard.getData('text/plain');
                     if (data?.text != null) {
@@ -171,8 +173,8 @@ class SettingsPage extends ConsumerWidget {
                 const SizedBox(height: 8),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Replace existing transactions', style: TextStyle(fontSize: 13)),
-                  subtitle: const Text('If checked, current transactions will be cleared first', style: TextStyle(fontSize: 11)),
+                  title: Text(AppStrings.tr(language, 'replace_existing'), style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(AppStrings.tr(language, 'replace_existing_sub'), style: const TextStyle(fontSize: 11)),
                   value: replaceExisting,
                   onChanged: (val) => setState(() => replaceExisting = val ?? false),
                 ),
@@ -182,7 +184,7 @@ class SettingsPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
+              child: Text(AppStrings.tr(language, 'cancel')),
             ),
             FilledButton(
               onPressed: () async {
@@ -211,7 +213,7 @@ class SettingsPage extends ConsumerWidget {
                   ),
                 );
               },
-              child: const Text('Restore Now'),
+              child: Text(AppStrings.tr(language, 'restore_now')),
             ),
           ],
         ),
@@ -229,6 +231,7 @@ class SettingsPage extends ConsumerWidget {
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return Scaffold(
       appBar: AppBar(
@@ -255,21 +258,21 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 12),
           // Theme Mode Selector
           SegmentedButton<ThemeMode>(
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: ThemeMode.system,
-                icon: Icon(Icons.brightness_auto, size: 16),
-                label: Text('System'),
+                icon: const Icon(Icons.brightness_auto, size: 16),
+                label: Text(AppStrings.tr(language, 'theme_mode_system')),
               ),
               ButtonSegment(
                 value: ThemeMode.light,
-                icon: Icon(Icons.light_mode, size: 16),
-                label: Text('Light'),
+                icon: const Icon(Icons.light_mode, size: 16),
+                label: Text(AppStrings.tr(language, 'theme_mode_light')),
               ),
               ButtonSegment(
                 value: ThemeMode.dark,
-                icon: Icon(Icons.dark_mode, size: 16),
-                label: Text('Dark'),
+                icon: const Icon(Icons.dark_mode, size: 16),
+                label: Text(AppStrings.tr(language, 'theme_mode_dark')),
               ),
             ],
             selected: {themeSettings.themeMode},
@@ -279,7 +282,7 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           // Accent Color Selector
-          const Text('Theme Accent Color', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey)),
+          Text(AppStrings.tr(language, 'theme_accent_color'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onSurfaceVariant)),
           const SizedBox(height: 8),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -370,7 +373,7 @@ class SettingsPage extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           // Storage Mode Segmented Switch
-          Text(AppStrings.tr(language, 'storage_mode_desc'), style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          Text(AppStrings.tr(language, 'storage_mode_desc'), style: TextStyle(fontSize: 13, color: onSurfaceVariant)),
           const SizedBox(height: 10),
           SegmentedButton<StorageMode>(
             segments: [
@@ -389,7 +392,7 @@ class SettingsPage extends ConsumerWidget {
             onSelectionChanged: (set) {
               ref.read(appPreferencesProvider.notifier).setStorageMode(set.first);
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Storage set to: ${set.first.title}')),
+                SnackBar(content: Text('${AppStrings.tr(language, 'storage_mode')}: ${set.first.title}')),
               );
             },
           ),
@@ -400,7 +403,7 @@ class SettingsPage extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.blue.shade50, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.15), shape: BoxShape.circle),
               child: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
             ),
             title: Text(AppStrings.tr(language, 'backup_export'), style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -429,7 +432,7 @@ class SettingsPage extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.purple.shade50, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: Colors.purple.withValues(alpha: 0.15), shape: BoxShape.circle),
               child: const Icon(Icons.cloud_download_outlined, color: Colors.deepPurple),
             ),
             title: Text(AppStrings.tr(language, 'restore_import'), style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -444,22 +447,22 @@ class SettingsPage extends ConsumerWidget {
           const Divider(height: 32),
 
           // Personal Wallet
-          const Text(
-            'Personal Wallet',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple),
+          Text(
+            AppStrings.tr(language, 'wallet'),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.account_balance_wallet, color: Colors.deepPurple),
-            title: const Text('Your Wallet Balance'),
+            leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+            title: Text(AppStrings.tr(language, 'wallet_balance')),
             subtitle: Text(
-              walletAmount > 0 ? currencyFormat.format(walletAmount) : 'Not configured (Tap to set)',
+              walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set'),
               style: TextStyle(
                 fontWeight: walletAmount > 0 ? FontWeight.bold : FontWeight.normal,
               ),
             ),
-            trailing: const Icon(Icons.edit, color: Colors.deepPurple),
+            trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
             onTap: () {
               if (currentUser != null) {
                 _showWalletDialog(context, ref, walletAmount, currentUser.uid);
@@ -469,15 +472,15 @@ class SettingsPage extends ConsumerWidget {
           const Divider(height: 32),
 
           // Household Settings
-          const Text(
-            'Household Settings',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.blue),
+          Text(
+            AppStrings.tr(language, 'household_settings'),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
           ),
           const SizedBox(height: 16),
           if (household != null) ...[
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Your Invite Code', style: TextStyle(color: Colors.grey)),
+              title: Text(AppStrings.tr(language, 'invite_code'), style: TextStyle(color: onSurfaceVariant)),
               subtitle: Text(
                 household.inviteCode,
                 style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
@@ -486,16 +489,16 @@ class SettingsPage extends ConsumerWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
-                    icon: const Icon(Icons.copy, color: Colors.blue),
+                    icon: Icon(Icons.copy, color: Theme.of(context).colorScheme.primary),
                     onPressed: () {
                       Clipboard.setData(ClipboardData(text: household.inviteCode));
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Invite code copied to clipboard!')),
+                        SnackBar(content: Text(AppStrings.tr(language, 'invite_code_copied'))),
                       );
                     },
                   ),
                   IconButton(
-                    icon: const Icon(Icons.share, color: Colors.blue),
+                    icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
                     onPressed: () {
                       SharePlus.instance.share(
                         ShareParams(
@@ -510,15 +513,15 @@ class SettingsPage extends ConsumerWidget {
             const Divider(),
             ListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Household Name'),
+              title: Text(AppStrings.tr(language, 'household_name')),
               subtitle: Text(household.name),
-              trailing: const Icon(Icons.edit, color: Colors.blue),
+              trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
               onTap: () {
                 final controller = TextEditingController(text: household.name);
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Edit Household Name'),
+                    title: Text(AppStrings.tr(language, 'edit_household_name')),
                     content: TextField(
                       controller: controller,
                       decoration: const InputDecoration(hintText: 'Enter new name'),
@@ -528,7 +531,7 @@ class SettingsPage extends ConsumerWidget {
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(AppStrings.tr(language, 'cancel')),
                       ),
                       TextButton(
                         onPressed: () async {
@@ -548,7 +551,7 @@ class SettingsPage extends ConsumerWidget {
                             Navigator.pop(context);
                           }
                         },
-                        child: const Text('Save'),
+                        child: Text(AppStrings.tr(language, 'save')),
                       ),
                     ],
                   ),
@@ -562,26 +565,33 @@ class SettingsPage extends ConsumerWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.help_outline),
-            title: const Text('Help & Support'),
+            title: Text(AppStrings.tr(language, 'help_support')),
             onTap: () {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('Help & Support'),
-                  content: const Text(
-                    'SplitLedger helps your group track shared expenses and settle up monthly.\n\n'
-                    '• Add "You Paid" when you spend money.\n'
-                    '• Add "You Received" when you get money back.\n'
-                    '• Use Wallet to set your budget / cash balance.\n'
-                    '• Your Balance tracks your remaining wallet balance.\n'
-                    '• Share your invite code so your partner can join.\n'
-                    '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.\n'
-                    '• Use Data Storage & Backup to export and restore your ledger anytime.',
+                  title: Text(AppStrings.tr(language, 'help_support')),
+                  content: Text(
+                    language == AppLanguage.tamil
+                        ? 'SplitLedger உங்கள் செலவுகளைக் கண்காணிக்கவும் மாத இறுதியில் சமமாக கணக்கு முடிக்கவும் உதவுகிறது.\n\n'
+                          '• நீங்கள் செலவு செய்ததை சேர்க்க "பணம் செலவு" என்பதைப் பயன்படுத்தவும்.\n'
+                          '• பணம் பெற்றதை சேர்க்க "பணம் வரவு" என்பதைப் பயன்படுத்தவும்.\n'
+                          '• வாலட் மூலம் உங்கள் மொத்த கையிருப்பை அமைத்துக் கொள்ளலாம்.\n'
+                          '• அழைப்புக் குறியீட்டைப் பகிர்ந்து உங்கள் துணையை இணைக்கவும்.\n'
+                          '• வாட்ஸ்அப் நினைவூட்டல் மற்றும் UPI பே மூலம் நொடியில் பணத்தை மாற்றலாம்.'
+                        : 'SplitLedger helps your group track shared expenses and settle up monthly.\n\n'
+                          '• Add "You Paid" when you spend money.\n'
+                          '• Add "You Received" when you get money back.\n'
+                          '• Use Wallet to set your budget / cash balance.\n'
+                          '• Your Balance tracks your remaining wallet balance.\n'
+                          '• Share your invite code so your partner can join.\n'
+                          '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.\n'
+                          '• Use Data Storage & Backup to export and restore your ledger anytime.',
                   ),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text('Got it'),
+                      child: Text(AppStrings.tr(language, 'done')),
                     ),
                   ],
                 ),
@@ -592,17 +602,17 @@ class SettingsPage extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: const Text('Clear All Transactions', style: TextStyle(color: Colors.red)),
+              title: Text(AppStrings.tr(language, 'clear_all_tx'), style: const TextStyle(color: Colors.red)),
               onTap: () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Clear All Transactions?'),
-                    content: const Text('Are you sure you want to delete ALL transactions in this household? This action cannot be undone.'),
+                    title: Text(AppStrings.tr(language, 'clear_all_tx')),
+                    content: Text(AppStrings.tr(language, 'clear_all_tx_confirm')),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(AppStrings.tr(language, 'cancel')),
                       ),
                       TextButton(
                         onPressed: () async {
@@ -620,7 +630,7 @@ class SettingsPage extends ConsumerWidget {
                             );
                           }
                         },
-                        child: const Text('Delete All', style: TextStyle(color: Colors.red)),
+                        child: Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.red)),
                       ),
                     ],
                   ),
@@ -631,17 +641,17 @@ class SettingsPage extends ConsumerWidget {
             ListTile(
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.exit_to_app, color: Colors.orange),
-              title: const Text('Leave Household', style: TextStyle(color: Colors.orange)),
+              title: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange)),
               onTap: () {
                 showDialog(
                   context: context,
                   builder: (context) => AlertDialog(
-                    title: const Text('Leave Household?'),
-                    content: const Text('Are you sure you want to leave this household? You will no longer have access to its transactions.'),
+                    title: Text(AppStrings.tr(language, 'leave_household')),
+                    content: Text(AppStrings.tr(language, 'leave_household_confirm')),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context),
-                        child: const Text('Cancel'),
+                        child: Text(AppStrings.tr(language, 'cancel')),
                       ),
                       TextButton(
                         onPressed: () async {
@@ -663,7 +673,7 @@ class SettingsPage extends ConsumerWidget {
                             );
                           }
                         },
-                        child: const Text('Leave', style: TextStyle(color: Colors.orange)),
+                        child: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange)),
                       ),
                     ],
                   ),
@@ -674,7 +684,7 @@ class SettingsPage extends ConsumerWidget {
           Center(
             child: Text(
               'SplitLedger v1.0.0 • Legend Edition 🚀',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 12, color: onSurfaceVariant),
             ),
           ),
           const SizedBox(height: 16),
@@ -683,4 +693,3 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 }
-

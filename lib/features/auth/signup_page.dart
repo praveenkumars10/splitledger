@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 import 'auth_controller.dart';
 
 class SignupPage extends ConsumerStatefulWidget {
@@ -61,8 +63,8 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Text(
         label,
-        style: const TextStyle(
-          color: Color(0xFF1C2434),
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.onSurface,
           fontWeight: FontWeight.bold,
           fontSize: 14,
         ),
@@ -72,8 +74,10 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FA),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -83,7 +87,7 @@ class _SignupPageState extends ConsumerState<SignupPage> {
               child: Container(
                 padding: const EdgeInsets.all(32),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: Theme.of(context).cardColor,
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
@@ -102,83 +106,83 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1C2434),
+                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: const Icon(
+                        child: Icon(
                           Icons.account_balance_wallet,
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.primary,
                           size: 40,
                         ),
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Text(
-                      'Create Account',
+                    Text(
+                      AppStrings.tr(language, 'create_account'),
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w900,
-                        color: Color(0xFF1C2434),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Join SplitLedger today',
+                    Text(
+                      AppStrings.tr(language, 'manage_shared_expenses'),
                       style: TextStyle(
                         fontSize: 14,
-                        color: Color(0xFF6B7280),
+                        color: onSurfaceVariant,
                       ),
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 32),
                     
-                    _buildLabelRow('Full Name'),
+                    _buildLabelRow(AppStrings.tr(language, 'full_name')),
                     TextField(
                       controller: _nameController,
                       decoration: InputDecoration(
                         hintText: 'John Doe',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        prefixIcon: const Icon(Icons.person_outline, color: Color(0xFF9CA3AF)),
+                        hintStyle: TextStyle(color: onSurfaceVariant),
+                        prefixIcon: Icon(Icons.person_outline, color: onSurfaceVariant),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).scaffoldBackgroundColor,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1C2434)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                         ),
                       ),
                       textCapitalization: TextCapitalization.words,
                     ),
                     const SizedBox(height: 16),
 
-                    _buildLabelRow('Email Address'),
+                    _buildLabelRow(AppStrings.tr(language, 'email_address')),
                     TextField(
                       controller: _emailController,
                       decoration: InputDecoration(
                         hintText: 'name@company.com',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        prefixIcon: const Icon(Icons.alternate_email, color: Color(0xFF9CA3AF)),
+                        hintStyle: TextStyle(color: onSurfaceVariant),
+                        prefixIcon: Icon(Icons.alternate_email, color: onSurfaceVariant),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).scaffoldBackgroundColor,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1C2434)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                         ),
                       ),
                       keyboardType: TextInputType.emailAddress,
@@ -186,30 +190,30 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     ),
                     const SizedBox(height: 16),
                     
-                    _buildLabelRow('Password'),
+                    _buildLabelRow(AppStrings.tr(language, 'password')),
                     TextField(
                       controller: _passwordController,
                       decoration: InputDecoration(
                         hintText: '••••••••',
-                        hintStyle: const TextStyle(color: Color(0xFF9CA3AF)),
-                        prefixIcon: const Icon(Icons.lock_outline, color: Color(0xFF9CA3AF)),
+                        hintStyle: TextStyle(color: onSurfaceVariant),
+                        prefixIcon: Icon(Icons.lock_outline, color: onSurfaceVariant),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: Theme.of(context).scaffoldBackgroundColor,
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: const Color(0xFF9CA3AF)),
+                          icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility, color: onSurfaceVariant),
                           onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderSide: BorderSide(color: Theme.of(context).dividerColor),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Color(0xFF1C2434)),
+                          borderSide: BorderSide(color: Theme.of(context).colorScheme.primary, width: 2),
                         ),
                       ),
                       obscureText: _obscurePassword,
@@ -217,16 +221,13 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                     ),
                     const SizedBox(height: 32),
                     
-                    ElevatedButton(
+                    FilledButton(
                       onPressed: _isLoading ? null : _signup,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF1C2434),
-                        foregroundColor: Colors.white,
+                      style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        elevation: 0,
                       ),
                       child: _isLoading
                           ? const SizedBox(
@@ -234,23 +235,23 @@ class _SignupPageState extends ConsumerState<SignupPage> {
                               width: 20,
                               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                             )
-                          : const Text('Sign Up', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                          : Text(AppStrings.tr(language, 'signup'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ),
                     const SizedBox(height: 24),
                     
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text(
-                          "Already have an account? ",
-                          style: TextStyle(color: Color(0xFF6B7280)),
+                        Text(
+                          "${AppStrings.tr(language, 'already_have_account').split('?').first}? ",
+                          style: TextStyle(color: onSurfaceVariant),
                         ),
                         GestureDetector(
                           onTap: () => Navigator.of(context).pop(),
-                          child: const Text(
-                            'Login',
+                          child: Text(
+                            AppStrings.tr(language, 'login'),
                             style: TextStyle(
-                              color: Color(0xFF4F46E5),
+                              color: Theme.of(context).colorScheme.primary,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

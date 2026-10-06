@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 import '../../models/transaction_model.dart';
 import '../../models/household_model.dart';
 import 'transaction_repository.dart';
@@ -128,7 +130,8 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 
   void _save() async {
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final cleanText = _amountController.text.trim().replaceAll(',', '');
+    final amount = double.tryParse(cleanText) ?? 0;
     if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter a valid amount')));
       return;
@@ -183,6 +186,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   Widget build(BuildContext context) {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
+    final language = ref.watch(languageControllerProvider);
 
     if (!_initialized && household != null && currentUser != null) {
       _selectedUser = household.members.where((m) => m.uid == currentUser.uid).firstOrNull;
@@ -190,12 +194,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     }
 
     final color = _isPaid ? Colors.red : Colors.green;
-    final titleLabel = _isPaid ? 'Who Paid?' : 'Who Received?';
-    final amountLabel = _isPaid ? 'Amount Paid' : 'Amount Received';
+    final titleLabel = AppStrings.tr(language, _isPaid ? 'who_paid' : 'who_received');
+    final amountLabel = AppStrings.tr(language, _isPaid ? 'amount_paid' : 'amount_received');
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Transaction' : 'Add Transaction'),
+        title: Text(AppStrings.tr(language, _isEditing ? 'edit_transaction' : 'add_transaction')),
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -206,22 +210,24 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // User selection (Read-only)
+                  // User selection
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.grey.shade300),
-                      borderRadius: BorderRadius.circular(8),
-                      color: Colors.grey.shade50,
+                      border: Border.all(color: Theme.of(context).dividerColor),
+                      borderRadius: BorderRadius.circular(12),
+                      color: Theme.of(context).cardColor,
                     ),
                     child: Row(
                       children: [
                         Text(titleLabel, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                         const Spacer(),
                         Text(
-                          _selectedUser != null ? 'You (${_selectedUser!.name})' : 'You',
-                          style: const TextStyle(
-                            color: Colors.blue,
+                          _selectedUser != null
+                              ? '${AppStrings.tr(language, 'you')} (${_selectedUser!.name})'
+                              : AppStrings.tr(language, 'you'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.primary,
                             fontWeight: FontWeight.bold,
                             fontSize: 16,
                           ),
@@ -239,16 +245,16 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     decoration: InputDecoration(
                       labelText: amountLabel,
                       labelStyle: TextStyle(color: color),
-                      prefixText: '\u20B9 ', // Indian Rupee symbol
+                      prefixText: '₹ ',
                       prefixStyle: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color),
-                      suffixIcon: Icon(Icons.calculate_outlined, color: Colors.blue.shade300),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      suffixIcon: Icon(Icons.calculate_outlined, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.6)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: color, width: 2),
                       ),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -284,22 +290,24 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
-                        '🍔 Food',
-                        '🛒 Groceries',
-                        '🚗 Travel',
-                        '💡 Bills',
-                        '🏠 Rent',
-                        '🛍️ Shopping',
-                        '💊 Medical',
-                        '🎬 Entertainment',
-                        '💵 Settle',
-                      ].map((tag) {
+                        ('food', '🍔 ${AppStrings.tr(language, 'food')}'),
+                        ('grocery', '🛒 ${AppStrings.tr(language, 'grocery')}'),
+                        ('fuel', '🚗 ${AppStrings.tr(language, 'fuel')}'),
+                        ('tea', '☕ ${AppStrings.tr(language, 'tea')}'),
+                        ('bills', '💡 ${AppStrings.tr(language, 'bills')}'),
+                        ('rent', '🏠 ${AppStrings.tr(language, 'rent')}'),
+                        ('shopping', '🛍️ ${AppStrings.tr(language, 'shopping')}'),
+                        ('medical', '💊 ${AppStrings.tr(language, 'medical')}'),
+                        ('entertainment', '🎬 ${AppStrings.tr(language, 'entertainment')}'),
+                        ('settle', '💵 ${AppStrings.tr(language, 'settle')}'),
+                      ].map((item) {
+                        final tag = item.$2;
                         return Padding(
                           padding: const EdgeInsets.only(right: 6.0),
                           child: ActionChip(
                             label: Text(tag, style: const TextStyle(fontSize: 12)),
-                            backgroundColor: Colors.grey.shade100,
-                            side: BorderSide(color: Colors.grey.shade300),
+                            backgroundColor: Theme.of(context).cardColor,
+                            side: BorderSide(color: Theme.of(context).dividerColor),
                             onPressed: () {
                               if (_noteController.text.trim().isEmpty) {
                                 _noteController.text = tag;
@@ -318,15 +326,15 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   TextField(
                     controller: _noteController,
                     decoration: InputDecoration(
-                      hintText: 'Write notes or category [Optional]',
+                      hintText: AppStrings.tr(language, 'note_optional_hint'),
                       prefixIcon: const Icon(Icons.note_alt_outlined),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                     ),
                   ),
@@ -342,8 +350,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Theme.of(context).dividerColor),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Theme.of(context).cardColor,
                             ),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -351,7 +360,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                                 const Icon(Icons.chevron_left, size: 20),
                                 Text(_dateFormat.format(_selectedDate), style: const TextStyle(fontWeight: FontWeight.bold)),
                                 const Icon(Icons.chevron_right, size: 20),
-                                const Icon(Icons.calendar_today, size: 20, color: Colors.blue),
+                                Icon(Icons.calendar_today, size: 20, color: Theme.of(context).colorScheme.primary),
                               ],
                             ),
                           ),
@@ -365,8 +374,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                             decoration: BoxDecoration(
-                              border: Border.all(color: Colors.grey.shade300),
-                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Theme.of(context).dividerColor),
+                              borderRadius: BorderRadius.circular(12),
+                              color: Theme.of(context).cardColor,
                             ),
                             child: Center(
                               child: Text(_timeFormat.format(_selectedDate)),
@@ -384,25 +394,27 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
-                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Theme.of(context).dividerColor),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context).cardColor,
                       ),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(_dueDate == null ? 'Due Date' : _dateFormat.format(_dueDate!)),
-                          const Icon(Icons.calendar_today, size: 20, color: Colors.blue),
+                          Text(_dueDate == null ? AppStrings.tr(language, 'due_date') : _dateFormat.format(_dueDate!)),
+                          Icon(Icons.calendar_today, size: 20, color: Theme.of(context).colorScheme.primary),
                         ],
                       ),
                     ),
                   ),
                   const SizedBox(height: 16),
+
                   // Recurrence Interval Dropdown
                   DropdownButtonFormField<RecurrenceInterval>(
                     initialValue: _selectedRecurrence,
                     decoration: InputDecoration(
-                      labelText: 'Repeat',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      labelText: AppStrings.tr(language, 'repeat'),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     items: RecurrenceInterval.values
                         .map((i) => DropdownMenuItem(value: i, child: Text(i.toString().split('.').last)))
@@ -410,6 +422,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     onChanged: (v) => setState(() => _selectedRecurrence = v ?? RecurrenceInterval.none),
                   ),
                   const SizedBox(height: 16),
+
                   // Recurrence End Date (optional)
                   if (_selectedRecurrence != RecurrenceInterval.none)
                     InkWell(
@@ -425,24 +438,24 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
-                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Theme.of(context).dividerColor),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Theme.of(context).cardColor,
                         ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(_recurrenceEndDate == null ? 'End Date (optional)' : _dateFormat.format(_recurrenceEndDate!)),
-                            const Icon(Icons.calendar_today, size: 20, color: Colors.blue),
+                            Text(_recurrenceEndDate == null ? AppStrings.tr(language, 'end_date_optional') : _dateFormat.format(_recurrenceEndDate!)),
+                            Icon(Icons.calendar_today, size: 20, color: Theme.of(context).colorScheme.primary),
                           ],
                         ),
                       ),
                     ),
-
                 ],
               ),
             ),
           ),
-          
+
           // Bottom Buttons
           SafeArea(
             top: false,
@@ -454,28 +467,30 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   Expanded(
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.blue.shade700,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        side: BorderSide(color: Colors.blue.shade300),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-                      child: const Text('CANCEL', style: TextStyle(fontWeight: FontWeight.bold)),
+                      child: Text(
+                        AppStrings.tr(language, 'cancel').toUpperCase(),
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 12),
                   Expanded(
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue.shade600,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       onPressed: _isLoading ? null : _save,
                       child: _isLoading
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : Text(_isEditing ? 'UPDATE' : 'SAVE', style: const TextStyle(fontWeight: FontWeight.bold)),
+                          : Text(
+                              AppStrings.tr(language, _isEditing ? 'update' : 'save').toUpperCase(),
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
                     ),
                   ),
                 ],
@@ -485,6 +500,5 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         ],
       ),
     );
-
   }
 }

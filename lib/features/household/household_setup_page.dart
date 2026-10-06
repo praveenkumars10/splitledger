@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/localization/app_strings.dart';
+import '../../core/localization/language_controller.dart';
 import '../auth/auth_controller.dart';
 import 'household_repository.dart';
 
@@ -54,14 +56,15 @@ class _HouseholdSetupPageState extends ConsumerState<HouseholdSetupPage> {
   }
 
   Future<void> _showInviteCodeDialog(String inviteCode) {
+    final language = ref.read(languageControllerProvider);
     return showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Household Created!'),
+        title: Text(AppStrings.tr(language, 'setup_household')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Share this invite code with your partner so they can join:'),
+            Text(AppStrings.tr(language, 'invite_code')),
             const SizedBox(height: 16),
             SelectableText(
               inviteCode,
@@ -76,19 +79,19 @@ class _HouseholdSetupPageState extends ConsumerState<HouseholdSetupPage> {
         actions: [
           TextButton.icon(
             icon: const Icon(Icons.copy),
-            label: const Text('Copy'),
+            label: Text(AppStrings.tr(language, 'copy')),
             onPressed: () async {
               await Clipboard.setData(ClipboardData(text: inviteCode));
               if (dialogContext.mounted) {
                 ScaffoldMessenger.of(dialogContext).showSnackBar(
-                  const SnackBar(content: Text('Invite code copied')),
+                  SnackBar(content: Text(AppStrings.tr(language, 'invite_code_copied'))),
                 );
               }
             },
           ),
           FilledButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Done'),
+            child: Text(AppStrings.tr(language, 'done')),
           ),
         ],
       ),
@@ -96,8 +99,9 @@ class _HouseholdSetupPageState extends ConsumerState<HouseholdSetupPage> {
   }
 
   void _joinHousehold() async {
+    final language = ref.read(languageControllerProvider);
     if (_inviteCodeController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Enter invite code')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(AppStrings.tr(language, 'enter_invite_code'))));
       return;
     }
 
@@ -123,12 +127,15 @@ class _HouseholdSetupPageState extends ConsumerState<HouseholdSetupPage> {
 
   @override
   Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Setup Household'),
+        title: Text(AppStrings.tr(language, 'setup_household')),
         actions: [
           IconButton(
-            tooltip: 'Sign out',
+            tooltip: AppStrings.tr(language, 'logout'),
             icon: const Icon(Icons.logout),
             onPressed: () => ref.read(authControllerProvider).signOut(),
           ),
@@ -143,46 +150,49 @@ class _HouseholdSetupPageState extends ConsumerState<HouseholdSetupPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.group_add, size: 64),
+                Icon(Icons.group_add, size: 64, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(height: 16),
-                const Text(
-                  'SplitLedger works between exactly 2 people.\nCreate a household or join your partner\'s.',
+                Text(
+                  language == AppLanguage.tamil
+                      ? 'SplitLedger குடும்பம் அல்லது குழுவினருடன் பகிரப்பட்ட செலவுகளை நிர்வகிக்க உதவுகிறது.\nபுதிய குழுவை உருவாக்கவும் அல்லது அழைப்புக் குறியீடு மூலம் இணையவும்.'
+                      : 'SplitLedger works between people sharing expenses.\nCreate a household or join your partner\'s.',
                   textAlign: TextAlign.center,
+                  style: TextStyle(color: onSurfaceVariant),
                 ),
                 const SizedBox(height: 32),
-                ElevatedButton(
+                FilledButton(
                   onPressed: _isLoading ? null : _createHousehold,
-                  style: ElevatedButton.styleFrom(
+                  style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: _isLoading
-                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Create New Household'),
+                      ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      : Text(AppStrings.tr(language, 'create_new_household'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
-                const SizedBox(height: 32),
-                const Text(
-                  'OR',
+                const SizedBox(height: 24),
+                Text(
+                  AppStrings.tr(language, 'or_divider'),
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontWeight: FontWeight.bold),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: onSurfaceVariant),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 TextField(
                   controller: _inviteCodeController,
-                  decoration: const InputDecoration(
-                    labelText: 'Invite Code',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'enter_invite_code'),
+                    border: const OutlineInputBorder(),
                   ),
                   textCapitalization: TextCapitalization.characters,
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton(
+                OutlinedButton(
                   onPressed: _isLoading ? null : _joinHousehold,
-                  style: ElevatedButton.styleFrom(
+                  style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
                   child: _isLoading
                       ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Join Household'),
+                      : Text(AppStrings.tr(language, 'join_household'), style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
