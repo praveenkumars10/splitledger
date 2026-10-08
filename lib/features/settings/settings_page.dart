@@ -143,202 +143,24 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
-    final language = ref.read(languageControllerProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-    final controller = TextEditingController(
-      text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
-    );
+  void _showWalletDialog(BuildContext context, double currentAmount, String uid) {
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.account_balance_wallet, color: Theme.of(dialogCtx).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(AppStrings.tr(language, 'wallet_amount')),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppStrings.tr(language, 'wallet_desc'),
-              style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: AppStrings.tr(language, 'wallet_amount'),
-                hintText: 'e.g. 2000',
-                prefixText: '₹ ',
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Quick preset chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6.0),
-                    child: ActionChip(
-                      label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                      backgroundColor: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.1),
-                      side: BorderSide(color: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.3)),
-                      onPressed: () {
-                        controller.text = preset.toString();
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(dialogCtx).pop(),
-            child: Text(AppStrings.tr(language, 'cancel')),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final raw = controller.text.trim().toLowerCase();
-              double? parsed;
-              if (raw.endsWith('k')) {
-                final numPart = double.tryParse(raw.replaceAll('k', '').trim());
-                if (numPart != null) parsed = numPart * 1000;
-              } else {
-                parsed = double.tryParse(raw);
-              }
-              if (parsed != null && parsed >= 0) {
-                Navigator.of(dialogCtx).pop();
-                try {
-                  await ref.read(walletRepositoryProvider).setWalletAmount(uid, parsed);
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${currencyFormat.format(parsed)}')),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Error saving wallet: $e')),
-                  );
-                }
-              } else {
-                messenger.showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid amount')),
-                );
-              }
-            },
-            child: Text(AppStrings.tr(language, 'save')),
-          ),
-        ],
+      builder: (context) => _SettingsWalletDialog(
+        currentAmount: currentAmount,
+        uid: uid,
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 
-  void _showRestoreDialog(BuildContext context, WidgetRef ref, String householdId, String currentUid) {
-    final language = ref.read(languageControllerProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final textController = TextEditingController();
-    bool replaceExisting = false;
-
+  void _showRestoreDialog(BuildContext context, String householdId, String currentUid) {
     showDialog(
       context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (dialogCtx, setDialogState) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.restore, color: Theme.of(dialogCtx).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(AppStrings.tr(language, 'restore_import')),
-            ],
-          ),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.tr(language, 'restore_import_sub'),
-                  style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: textController,
-                  maxLines: 8,
-                  decoration: const InputDecoration(
-                    hintText: '{\n  "version": 1,\n  "appName": "SplitLedger",\n  "transactions": [...]\n}',
-                    border: OutlineInputBorder(),
-                    contentPadding: EdgeInsets.all(12),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.paste, size: 16),
-                  label: Text(AppStrings.tr(language, 'paste_clipboard')),
-                  onPressed: () async {
-                    final data = await Clipboard.getData('text/plain');
-                    if (data?.text != null) {
-                      setDialogState(() {
-                        textController.text = data!.text!;
-                      });
-                    }
-                  },
-                ),
-                const SizedBox(height: 8),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(AppStrings.tr(language, 'replace_existing'), style: const TextStyle(fontSize: 13)),
-                  subtitle: Text(AppStrings.tr(language, 'replace_existing_sub'), style: const TextStyle(fontSize: 11)),
-                  value: replaceExisting,
-                  onChanged: (val) => setDialogState(() => replaceExisting = val ?? false),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogCtx).pop(),
-              child: Text(AppStrings.tr(language, 'cancel')),
-            ),
-            FilledButton(
-              onPressed: () async {
-                final jsonString = textController.text.trim();
-                if (jsonString.isEmpty) {
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Please paste backup JSON content')),
-                  );
-                  return;
-                }
-
-                Navigator.of(dialogCtx).pop();
-                final result = await BackupRestoreService.restoreFromJson(
-                  ref: ref,
-                  householdId: householdId,
-                  currentUid: currentUid,
-                  rawJson: jsonString,
-                  replaceExisting: replaceExisting,
-                );
-
-                messenger.showSnackBar(
-                  SnackBar(
-                    content: Text(result.message),
-                    backgroundColor: result.success ? Colors.green : Colors.red,
-                  ),
-                );
-              },
-              child: Text(AppStrings.tr(language, 'restore_now')),
-            ),
-          ],
-        ),
+      builder: (context) => _RestoreDialog(
+        householdId: householdId,
+        currentUid: currentUid,
       ),
-    ).then((_) => textController.dispose());
+    );
   }
 
   @override
@@ -565,7 +387,7 @@ class SettingsPage extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               if (household != null && currentUser != null) {
-                _showRestoreDialog(context, ref, household.id, currentUser.uid);
+                _showRestoreDialog(context, household.id, currentUser.uid);
               }
             },
           ),
@@ -614,7 +436,7 @@ class SettingsPage extends ConsumerWidget {
             trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
             onTap: () {
               if (currentUser != null) {
-                _showWalletDialog(context, ref, walletAmount, currentUser.uid);
+                _showWalletDialog(context, walletAmount, currentUser.uid);
               }
             },
           ),
@@ -666,44 +488,13 @@ class SettingsPage extends ConsumerWidget {
               subtitle: Text(household.name),
               trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
               onTap: () {
-                final messenger = ScaffoldMessenger.of(context);
-                final controller = TextEditingController(text: household.name);
                 showDialog(
                   context: context,
-                  builder: (dialogCtx) => AlertDialog(
-                    title: Text(AppStrings.tr(language, 'edit_household_name')),
-                    content: TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(hintText: 'Enter new name'),
-                      autofocus: true,
-                      textCapitalization: TextCapitalization.words,
-                    ),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.of(dialogCtx).pop(),
-                        child: Text(AppStrings.tr(language, 'cancel')),
-                      ),
-                      TextButton(
-                        onPressed: () async {
-                          final newName = controller.text.trim();
-                          if (newName.isNotEmpty && newName != household.name) {
-                            Navigator.of(dialogCtx).pop();
-                            try {
-                              await ref.read(householdRepositoryProvider).updateHouseholdName(household.id, newName);
-                            } catch (e) {
-                              messenger.showSnackBar(
-                                SnackBar(content: Text('Error: $e')),
-                              );
-                            }
-                          } else {
-                            Navigator.of(dialogCtx).pop();
-                          }
-                        },
-                        child: Text(AppStrings.tr(language, 'save')),
-                      ),
-                    ],
+                  builder: (dialogCtx) => _EditHouseholdNameDialog(
+                    householdId: household.id,
+                    initialName: household.name,
                   ),
-                ).then((_) => controller.dispose());
+                );
               },
             ),
           ] else ...[
@@ -838,6 +629,331 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 16),
         ],
       ),
+    );
+  }
+}
+
+class _SettingsWalletDialog extends ConsumerStatefulWidget {
+  final double currentAmount;
+  final String uid;
+
+  const _SettingsWalletDialog({
+    required this.currentAmount,
+    required this.uid,
+  });
+
+  @override
+  ConsumerState<_SettingsWalletDialog> createState() => _SettingsWalletDialogState();
+}
+
+class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
+  late final TextEditingController _controller;
+  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.currentAmount > 0 ? widget.currentAmount.toStringAsFixed(0) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final language = ref.read(languageControllerProvider);
+    final raw = _controller.text.trim().toLowerCase();
+    double? parsed;
+    if (raw.endsWith('k')) {
+      final numPart = double.tryParse(raw.replaceAll('k', '').trim());
+      if (numPart != null) parsed = numPart * 1000;
+    } else {
+      parsed = double.tryParse(raw);
+    }
+
+    if (parsed != null && parsed >= 0) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.of(context).pop();
+      try {
+        await ref.read(walletRepositoryProvider).setWalletAmount(widget.uid, parsed);
+        messenger.showSnackBar(
+          SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
+        );
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Error saving wallet: $e')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(AppStrings.tr(language, 'wallet_amount')),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppStrings.tr(language, 'wallet_desc'),
+            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: AppStrings.tr(language, 'wallet_amount'),
+              hintText: 'e.g. 2000',
+              prefixText: '₹ ',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6.0),
+                  child: ActionChip(
+                    label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                    onPressed: () {
+                      _controller.text = preset.toString();
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: _handleSave,
+          child: Text(AppStrings.tr(language, 'save')),
+        ),
+      ],
+    );
+  }
+}
+
+class _RestoreDialog extends ConsumerStatefulWidget {
+  final String householdId;
+  final String currentUid;
+
+  const _RestoreDialog({
+    required this.householdId,
+    required this.currentUid,
+  });
+
+  @override
+  ConsumerState<_RestoreDialog> createState() => _RestoreDialogState();
+}
+
+class _RestoreDialogState extends ConsumerState<_RestoreDialog> {
+  late final TextEditingController _textController;
+  bool _replaceExisting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _textController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleRestore() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final jsonString = _textController.text.trim();
+
+    if (jsonString.isEmpty) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Please paste backup JSON content')),
+      );
+      return;
+    }
+
+    Navigator.of(context).pop();
+    final result = await BackupRestoreService.restoreFromJson(
+      ref: ref,
+      householdId: widget.householdId,
+      currentUid: widget.currentUid,
+      rawJson: jsonString,
+      replaceExisting: _replaceExisting,
+    );
+
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.success ? Colors.green : Colors.red,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.restore, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(AppStrings.tr(language, 'restore_import')),
+        ],
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppStrings.tr(language, 'restore_import_sub'),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _textController,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                hintText: '{\n  "version": 1,\n  "appName": "SplitLedger",\n  "transactions": [...]\n}',
+                border: OutlineInputBorder(),
+                contentPadding: EdgeInsets.all(12),
+              ),
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.paste, size: 16),
+              label: Text(AppStrings.tr(language, 'paste_clipboard')),
+              onPressed: () async {
+                final data = await Clipboard.getData('text/plain');
+                if (data?.text != null && mounted) {
+                  setState(() {
+                    _textController.text = data!.text!;
+                  });
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(AppStrings.tr(language, 'replace_existing'), style: const TextStyle(fontSize: 13)),
+              subtitle: Text(AppStrings.tr(language, 'replace_existing_sub'), style: const TextStyle(fontSize: 11)),
+              value: _replaceExisting,
+              onChanged: (val) => setState(() => _replaceExisting = val ?? false),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: _handleRestore,
+          child: Text(AppStrings.tr(language, 'restore_now')),
+        ),
+      ],
+    );
+  }
+}
+
+class _EditHouseholdNameDialog extends ConsumerStatefulWidget {
+  final String householdId;
+  final String initialName;
+
+  const _EditHouseholdNameDialog({
+    required this.householdId,
+    required this.initialName,
+  });
+
+  @override
+  ConsumerState<_EditHouseholdNameDialog> createState() => _EditHouseholdNameDialogState();
+}
+
+class _EditHouseholdNameDialogState extends ConsumerState<_EditHouseholdNameDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialName);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final newName = _controller.text.trim();
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pop();
+
+    if (newName.isNotEmpty && newName != widget.initialName) {
+      try {
+        await ref.read(householdRepositoryProvider).updateHouseholdName(widget.householdId, newName);
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Text(AppStrings.tr(language, 'edit_household_name')),
+      content: TextField(
+        controller: _controller,
+        decoration: const InputDecoration(hintText: 'Enter new name'),
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        TextButton(
+          onPressed: _handleSave,
+          child: Text(AppStrings.tr(language, 'save')),
+        ),
+      ],
     );
   }
 }

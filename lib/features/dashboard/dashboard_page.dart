@@ -97,201 +97,42 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     });
   }
 
-  void _showKeywordSearch() {
-    final language = ref.read(languageControllerProvider);
-    final controller = TextEditingController(text: _keyword ?? '');
-    showDialog(
+  void _showKeywordSearch() async {
+    final result = await showDialog<String?>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppStrings.tr(language, 'search_title')),
-        content: TextField(
-          controller: controller,
-          decoration: InputDecoration(
-            hintText: AppStrings.tr(language, 'search_hint'),
-            border: const OutlineInputBorder(),
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.tr(language, 'cancel')),
-          ),
-          FilledButton(
-            onPressed: () {
-              final query = controller.text.trim();
-              Navigator.pop(context);
-              if (mounted) {
-                setState(() => _keyword = query.isEmpty ? null : query);
-              }
-            },
-            child: Text(AppStrings.tr(language, 'search_title')),
-          ),
-        ],
+      builder: (context) => _DashboardKeywordSearchDialog(
+        initialKeyword: _keyword ?? '',
       ),
-    ).then((_) => controller.dispose());
+    );
+    if (result != null && mounted) {
+      setState(() => _keyword = result.isEmpty ? null : result);
+    }
   }
 
   void _showWalletDialog(double currentAmount, String uid) {
-    final language = ref.read(languageControllerProvider);
-    final controller = TextEditingController(
-      text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
-    );
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(width: 8),
-            Text(AppStrings.tr(language, 'wallet_amount')),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppStrings.tr(language, 'wallet_desc'),
-              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              autofocus: true,
-              decoration: InputDecoration(
-                labelText: AppStrings.tr(language, 'wallet_amount'),
-                hintText: 'e.g. 2000 or 2k',
-                prefixText: '₹ ',
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            // Quick preset chips
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6.0),
-                    child: ActionChip(
-                      label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
-                      onPressed: () {
-                        controller.text = preset.toString();
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(AppStrings.tr(language, 'cancel')),
-          ),
-          FilledButton(
-            onPressed: () async {
-              final raw = controller.text.trim().toLowerCase();
-              double? parsed;
-              if (raw.endsWith('k')) {
-                final numPart = double.tryParse(raw.replaceAll('k', '').trim());
-                if (numPart != null) parsed = numPart * 1000;
-              } else {
-                final clean = raw.replaceAll(',', '').trim();
-                parsed = double.tryParse(clean);
-              }
-              if (parsed != null && parsed >= 0) {
-                final messenger = ScaffoldMessenger.of(context);
-                Navigator.pop(context);
-                try {
-                  await ref.read(walletRepositoryProvider).setWalletAmount(uid, parsed);
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
-                  );
-                } catch (e) {
-                  messenger.showSnackBar(
-                    SnackBar(content: Text('Error saving wallet: $e')),
-                  );
-                }
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Please enter a valid amount')),
-                );
-              }
-            },
-            child: Text(AppStrings.tr(language, 'save')),
-          ),
-        ],
+      builder: (context) => _DashboardWalletDialog(
+        currentAmount: currentAmount,
+        uid: uid,
       ),
-    ).then((_) => controller.dispose());
+    );
   }
 
-  void _showAmountFilter() {
-    final language = ref.read(languageControllerProvider);
-    final minController = TextEditingController(
-      text: _minAmount != null ? _minAmount!.toStringAsFixed(0) : '',
-    );
-    final maxController = TextEditingController(
-      text: _maxAmount != null ? _maxAmount!.toStringAsFixed(0) : '',
-    );
-    showDialog(
+  void _showAmountFilter() async {
+    final result = await showDialog<Map<String, double?>?>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(AppStrings.tr(language, 'filter_by_amount')),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: minController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: AppStrings.tr(language, 'min_amount'),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: maxController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: AppStrings.tr(language, 'max_amount'),
-                border: const OutlineInputBorder(),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _minAmount = null;
-                _maxAmount = null;
-              });
-              Navigator.pop(context);
-            },
-            child: Text(AppStrings.tr(language, 'clear_filter')),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _minAmount = double.tryParse(minController.text.trim());
-                _maxAmount = double.tryParse(maxController.text.trim());
-              });
-            },
-            child: Text(AppStrings.tr(language, 'apply_filter')),
-          ),
-        ],
+      builder: (context) => _DashboardAmountFilterDialog(
+        minAmount: _minAmount,
+        maxAmount: _maxAmount,
       ),
-    ).then((_) {
-      minController.dispose();
-      maxController.dispose();
-    });
+    );
+    if (result != null && mounted) {
+      setState(() {
+        _minAmount = result['min'];
+        _maxAmount = result['max'];
+      });
+    }
   }
 
   @override
@@ -1148,6 +989,274 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       onDeleted: onRemove,
       deleteIcon: const Icon(Icons.close, size: 18),
       visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _DashboardKeywordSearchDialog extends ConsumerStatefulWidget {
+  final String initialKeyword;
+
+  const _DashboardKeywordSearchDialog({required this.initialKeyword});
+
+  @override
+  ConsumerState<_DashboardKeywordSearchDialog> createState() => _DashboardKeywordSearchDialogState();
+}
+
+class _DashboardKeywordSearchDialogState extends ConsumerState<_DashboardKeywordSearchDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialKeyword);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Text(AppStrings.tr(language, 'search_title')),
+      content: TextField(
+        controller: _controller,
+        decoration: InputDecoration(
+          hintText: AppStrings.tr(language, 'search_hint'),
+          border: const OutlineInputBorder(),
+        ),
+        autofocus: true,
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(context, _controller.text.trim());
+          },
+          child: Text(AppStrings.tr(language, 'search_title')),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardWalletDialog extends ConsumerStatefulWidget {
+  final double currentAmount;
+  final String uid;
+
+  const _DashboardWalletDialog({
+    required this.currentAmount,
+    required this.uid,
+  });
+
+  @override
+  ConsumerState<_DashboardWalletDialog> createState() => _DashboardWalletDialogState();
+}
+
+class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> {
+  late final TextEditingController _controller;
+  final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(
+      text: widget.currentAmount > 0 ? widget.currentAmount.toStringAsFixed(0) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final language = ref.read(languageControllerProvider);
+    final raw = _controller.text.trim().toLowerCase();
+    double? parsed;
+    if (raw.endsWith('k')) {
+      final numPart = double.tryParse(raw.replaceAll('k', '').trim());
+      if (numPart != null) parsed = numPart * 1000;
+    } else {
+      final clean = raw.replaceAll(',', '').trim();
+      parsed = double.tryParse(clean);
+    }
+
+    if (parsed != null && parsed >= 0) {
+      final messenger = ScaffoldMessenger.of(context);
+      Navigator.pop(context);
+      try {
+        await ref.read(walletRepositoryProvider).setWalletAmount(widget.uid, parsed);
+        messenger.showSnackBar(
+          SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
+        );
+      } catch (e) {
+        messenger.showSnackBar(
+          SnackBar(content: Text('Error saving wallet: $e')),
+        );
+      }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid amount')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Row(
+        children: [
+          Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(AppStrings.tr(language, 'wallet_amount')),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppStrings.tr(language, 'wallet_desc'),
+            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _controller,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: AppStrings.tr(language, 'wallet_amount'),
+              hintText: 'e.g. 2000 or 2k',
+              prefixText: '₹ ',
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
+                return Padding(
+                  padding: const EdgeInsets.only(right: 6.0),
+                  child: ActionChip(
+                    label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
+                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                    onPressed: () {
+                      _controller.text = preset.toString();
+                    },
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: _handleSave,
+          child: Text(AppStrings.tr(language, 'save')),
+        ),
+      ],
+    );
+  }
+}
+
+class _DashboardAmountFilterDialog extends ConsumerStatefulWidget {
+  final double? minAmount;
+  final double? maxAmount;
+
+  const _DashboardAmountFilterDialog({
+    required this.minAmount,
+    required this.maxAmount,
+  });
+
+  @override
+  ConsumerState<_DashboardAmountFilterDialog> createState() => _DashboardAmountFilterDialogState();
+}
+
+class _DashboardAmountFilterDialogState extends ConsumerState<_DashboardAmountFilterDialog> {
+  late final TextEditingController _minController;
+  late final TextEditingController _maxController;
+
+  @override
+  void initState() {
+    super.initState();
+    _minController = TextEditingController(
+      text: widget.minAmount != null ? widget.minAmount!.toStringAsFixed(0) : '',
+    );
+    _maxController = TextEditingController(
+      text: widget.maxAmount != null ? widget.maxAmount!.toStringAsFixed(0) : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _minController.dispose();
+    _maxController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      title: Text(AppStrings.tr(language, 'filter_by_amount')),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _minController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: AppStrings.tr(language, 'min_amount'),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _maxController,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: AppStrings.tr(language, 'max_amount'),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context, {'min': null, 'max': null});
+          },
+          child: Text(AppStrings.tr(language, 'clear_filter')),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.pop(context, {
+              'min': double.tryParse(_minController.text.trim()),
+              'max': double.tryParse(_maxController.text.trim()),
+            });
+          },
+          child: Text(AppStrings.tr(language, 'apply_filter')),
+        ),
+      ],
     );
   }
 }

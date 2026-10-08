@@ -83,340 +83,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   void _showForgotPasswordDialog() {
-    final language = ref.read(languageControllerProvider);
-    final emailController = TextEditingController(text: _emailController.text.trim());
-    final recoveryKeyController = TextEditingController();
-    final newPasswordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
-    int selectedMethod = 0; // 0 = Recovery Key, 1 = Email Link
-    bool isResetting = false;
-    bool obscureNew = true;
-    bool obscureConfirm = true;
-
     showDialog(
       context: context,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  AppStrings.tr(language, 'reset_password'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-              ),
-            ],
-          ),
-          content: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Method selector tabs
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.all(4),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () => setDialogState(() => selectedMethod = 0),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selectedMethod == 0 ? Theme.of(context).colorScheme.primary : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                AppStrings.tr(language, 'recovery_method_key'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: selectedMethod == 0 ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(8),
-                            onTap: () => setDialogState(() => selectedMethod = 1),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(vertical: 8),
-                              decoration: BoxDecoration(
-                                color: selectedMethod == 1 ? Theme.of(context).colorScheme.primary : Colors.transparent,
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                AppStrings.tr(language, 'recovery_method_email'),
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.bold,
-                                  color: selectedMethod == 1 ? Colors.white : Theme.of(context).colorScheme.onSurface,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  if (selectedMethod == 0) ...[
-                    // Recovery Key / In-App Reset View
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.shield_outlined, color: Colors.blue, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              AppStrings.tr(language, 'recovery_key_desc'),
-                              style: const TextStyle(fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr(language, 'email_address'),
-                        hintText: 'name@example.com',
-                        prefixIcon: const Icon(Icons.alternate_email, size: 20),
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: recoveryKeyController,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr(language, 'recovery_key'),
-                        hintText: AppStrings.tr(language, 'recovery_key_hint'),
-                        prefixIcon: const Icon(Icons.key_outlined, size: 20),
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: newPasswordController,
-                      obscureText: obscureNew,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr(language, 'new_password'),
-                        hintText: '••••••••',
-                        prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                        suffixIcon: IconButton(
-                          icon: Icon(obscureNew ? Icons.visibility_off : Icons.visibility, size: 18),
-                          onPressed: () => setDialogState(() => obscureNew = !obscureNew),
-                        ),
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: confirmPasswordController,
-                      obscureText: obscureConfirm,
-                      decoration: InputDecoration(
-                        labelText: AppStrings.tr(language, 'confirm_new_password'),
-                        hintText: '••••••••',
-                        prefixIcon: const Icon(Icons.lock_outline, size: 20),
-                        suffixIcon: IconButton(
-                          icon: Icon(obscureConfirm ? Icons.visibility_off : Icons.visibility, size: 18),
-                          onPressed: () => setDialogState(() => obscureConfirm = !obscureConfirm),
-                        ),
-                        border: const OutlineInputBorder(),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                      ),
-                    ),
-                  ] else ...[
-                    // Email Reset Link View
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: Colors.amber.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.info_outline, color: Colors.amber, size: 18),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              AppStrings.tr(language, 'reset_password_desc'),
-                              style: const TextStyle(fontSize: 12),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: InputDecoration(
-                        hintText: 'name@company.com',
-                        labelText: AppStrings.tr(language, 'email_address'),
-                        prefixIcon: const Icon(Icons.alternate_email, size: 20),
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: isResetting ? null : () => Navigator.pop(dialogCtx),
-              child: Text(AppStrings.tr(language, 'cancel')),
-            ),
-            FilledButton(
-              onPressed: isResetting
-                  ? null
-                  : () async {
-                      final email = emailController.text.trim();
-                      if (email.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(AppStrings.tr(language, 'email_address'))),
-                        );
-                        return;
-                      }
-
-                    setDialogState(() => isResetting = true);
-                    final messenger = ScaffoldMessenger.of(context);
-                    final navigator = Navigator.of(dialogCtx);
-                    if (selectedMethod == 0) {
-                      // In-App Key Reset
-                      final key = recoveryKeyController.text.trim();
-                      final newPass = newPasswordController.text.trim();
-                      final confirmPass = confirmPasswordController.text.trim();
-
-                      if (key.isEmpty) {
-                        setDialogState(() => isResetting = false);
-                        messenger.showSnackBar(
-                          SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
-                        );
-                        return;
-                      }
-                      if (newPass.length < 6) {
-                        setDialogState(() => isResetting = false);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(AppStrings.tr(language, 'password_min_length')),
-                            backgroundColor: Colors.orange.shade800,
-                          ),
-                        );
-                        return;
-                      }
-                      if (newPass != confirmPass) {
-                        setDialogState(() => isResetting = false);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(AppStrings.tr(language, 'passwords_do_not_match')),
-                            backgroundColor: Colors.orange.shade800,
-                          ),
-                        );
-                        return;
-                      }
-
-                      try {
-                        await ref.read(authControllerProvider).resetPasswordWithRecoveryKey(
-                              email: email,
-                              recoveryKey: key,
-                              newPassword: newPass,
-                            );
-                        navigator.pop();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(AppStrings.tr(language, 'password_reset_success')),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        setDialogState(() => isResetting = false);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(getFriendlyAuthErrorMessage(e, language)),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    } else {
-                      // Email link reset
-                      try {
-                        await ref.read(authControllerProvider).sendPasswordResetEmail(email);
-                        navigator.pop();
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(AppStrings.tr(language, 'reset_email_sent')),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        setDialogState(() => isResetting = false);
-                        messenger.showSnackBar(
-                          SnackBar(
-                            content: Text(getFriendlyAuthErrorMessage(e, language)),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    }
-                  },
-              child: isResetting
-                  ? const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : Text(
-                      selectedMethod == 0
-                          ? AppStrings.tr(language, 'reset_password')
-                          : AppStrings.tr(language, 'send_reset_link'),
-                    ),
-            ),
-          ],
-        ),
+      builder: (context) => _ForgotPasswordDialog(
+        initialEmail: _emailController.text.trim(),
       ),
-    ).then((_) {
-      emailController.dispose();
-      recoveryKeyController.dispose();
-      newPasswordController.dispose();
-      confirmPasswordController.dispose();
-    });
+    );
   }
 
   Widget _buildLabelRow(String label, {Widget? action}) {
@@ -694,6 +366,373 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _ForgotPasswordDialog extends ConsumerStatefulWidget {
+  final String initialEmail;
+  const _ForgotPasswordDialog({required this.initialEmail});
+
+  @override
+  ConsumerState<_ForgotPasswordDialog> createState() => _ForgotPasswordDialogState();
+}
+
+class _ForgotPasswordDialogState extends ConsumerState<_ForgotPasswordDialog> {
+  late final TextEditingController _emailController;
+  late final TextEditingController _recoveryKeyController;
+  late final TextEditingController _newPasswordController;
+  late final TextEditingController _confirmPasswordController;
+
+  int _selectedMethod = 0; // 0 = Recovery Key, 1 = Email Link
+  bool _isResetting = false;
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _emailController = TextEditingController(text: widget.initialEmail);
+    _recoveryKeyController = TextEditingController();
+    _newPasswordController = TextEditingController();
+    _confirmPasswordController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _recoveryKeyController.dispose();
+    _newPasswordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleReset() async {
+    final language = ref.read(languageControllerProvider);
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.tr(language, 'email_address'))),
+      );
+      return;
+    }
+
+    setState(() => _isResetting = true);
+
+    if (_selectedMethod == 0) {
+      // In-App Key Reset
+      final key = _recoveryKeyController.text.trim();
+      final newPass = _newPasswordController.text.trim();
+      final confirmPass = _confirmPasswordController.text.trim();
+
+      if (key.isEmpty) {
+        setState(() => _isResetting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
+        );
+        return;
+      }
+      if (newPass.length < 6) {
+        setState(() => _isResetting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.tr(language, 'password_min_length')),
+            backgroundColor: Colors.orange.shade800,
+          ),
+        );
+        return;
+      }
+      if (newPass != confirmPass) {
+        setState(() => _isResetting = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.tr(language, 'passwords_do_not_match')),
+            backgroundColor: Colors.orange.shade800,
+          ),
+        );
+        return;
+      }
+
+      try {
+        await ref.read(authControllerProvider).resetPasswordWithRecoveryKey(
+              email: email,
+              recoveryKey: key,
+              newPassword: newPass,
+            );
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppStrings.tr(language, 'password_reset_success')),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isResetting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(getFriendlyAuthErrorMessage(e, language)),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } else {
+      // Email link reset
+      try {
+        await ref.read(authControllerProvider).sendPasswordResetEmail(email);
+        if (mounted) {
+          Navigator.of(context).pop();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(AppStrings.tr(language, 'reset_email_sent')),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isResetting = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(getFriendlyAuthErrorMessage(e, language)),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(Icons.lock_reset, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              AppStrings.tr(language, 'reset_password'),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 380),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Method selector tabs
+              Container(
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _selectedMethod = 0),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedMethod == 0 ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            AppStrings.tr(language, 'recovery_method_key'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedMethod == 0 ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(8),
+                        onTap: () => setState(() => _selectedMethod = 1),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedMethod == 1 ? Theme.of(context).colorScheme.primary : Colors.transparent,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            AppStrings.tr(language, 'recovery_method_email'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: _selectedMethod == 1 ? Colors.white : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              if (_selectedMethod == 0) ...[
+                // Recovery Key / In-App Reset View
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.blue.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.shield_outlined, color: Colors.blue, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          AppStrings.tr(language, 'recovery_key_desc'),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'email_address'),
+                    hintText: 'name@example.com',
+                    prefixIcon: const Icon(Icons.alternate_email, size: 20),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _recoveryKeyController,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'recovery_key'),
+                    hintText: AppStrings.tr(language, 'recovery_key_hint'),
+                    prefixIcon: const Icon(Icons.key_outlined, size: 20),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _newPasswordController,
+                  obscureText: _obscureNew,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'new_password'),
+                    hintText: '••••••••',
+                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureNew ? Icons.visibility_off : Icons.visibility, size: 18),
+                      onPressed: () => setState(() => _obscureNew = !_obscureNew),
+                    ),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: _obscureConfirm,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'confirm_new_password'),
+                    hintText: '••••••••',
+                    prefixIcon: const Icon(Icons.lock_outline, size: 20),
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscureConfirm ? Icons.visibility_off : Icons.visibility, size: 18),
+                      onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm),
+                    ),
+                    border: const OutlineInputBorder(),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  ),
+                ),
+              ] else ...[
+                // Email Reset Link View
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          AppStrings.tr(language, 'reset_password_desc'),
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    hintText: 'name@company.com',
+                    labelText: AppStrings.tr(language, 'email_address'),
+                    prefixIcon: const Icon(Icons.alternate_email, size: 20),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isResetting ? null : () => Navigator.of(context).pop(),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: _isResetting ? null : _handleReset,
+          child: _isResetting
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : Text(
+                  _selectedMethod == 0
+                      ? AppStrings.tr(language, 'reset_password')
+                      : AppStrings.tr(language, 'send_reset_link'),
+                ),
+        ),
+      ],
     );
   }
 }
