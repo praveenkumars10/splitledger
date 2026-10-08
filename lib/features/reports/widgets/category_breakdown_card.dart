@@ -21,6 +21,7 @@ class CategoryBreakdownCard extends ConsumerWidget {
     'entertainment': (Icons.movie, Color(0xFFEC4899)),
     'shopping': (Icons.shopping_bag, Color(0xFFA855F7)),
     'medical': (Icons.medical_services, Color(0xFFE11D48)),
+    'settle': (Icons.handshake, Color(0xFF0D9488)),
     'other': (Icons.category, Color(0xFF64748B)),
   };
 

@@ -45,12 +45,15 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
 
   Future<void> _recordSettlement(SettlementTransaction s, String householdId, String currentUid, String currentName) async {
     final messenger = ScaffoldMessenger.of(context);
+    final receiverUid = s.toUid.isNotEmpty ? s.toUid : currentUid;
+    final receiverName = s.to.isNotEmpty ? s.to : currentName;
     final tx = TransactionModel(
       id: '',
       amount: s.amount,
       category: 'settlement',
-      paidByUid: currentUid,
-      paidByName: currentName,
+      paidByUid: receiverUid,
+      paidByName: receiverName,
+      counterpartyUid: s.fromUid.isNotEmpty ? s.fromUid : null,
       note: 'Settlement: ${s.from} paid ${s.to}',
       date: DateTime.now(),
       type: TransactionType.received,

@@ -18,6 +18,103 @@ import '../wallet/wallet_repository.dart';
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
+  void _showRecoveryKeyDialog(BuildContext context, WidgetRef ref, String uid) {
+    final language = ref.read(languageControllerProvider);
+    final controller = TextEditingController();
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.key, color: Colors.blue),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  AppStrings.tr(language, 'recovery_key_settings'),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                AppStrings.tr(language, 'recovery_key_desc'),
+                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: AppStrings.tr(language, 'recovery_key'),
+                  hintText: AppStrings.tr(language, 'recovery_key_hint'),
+                  prefixIcon: const Icon(Icons.shield_outlined),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(context),
+              child: Text(AppStrings.tr(language, 'cancel')),
+            ),
+            FilledButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      final key = controller.text.trim();
+                      if (key.isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
+                        );
+                        return;
+                      }
+                      setState(() => isLoading = true);
+                      try {
+                        await ref.read(authControllerProvider).updateRecoveryKey(uid, key);
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(AppStrings.tr(language, 'recovery_key_saved')),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          setState(() => isLoading = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                          );
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(AppStrings.tr(language, 'save')),
+            ),
+          ],
+        ),
+      ),
+    ).then((_) => controller.dispose());
+  }
+
   void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
     final language = ref.read(languageControllerProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
@@ -441,6 +538,30 @@ class SettingsPage extends ConsumerWidget {
             onTap: () {
               if (household != null && currentUser != null) {
                 _showRestoreDialog(context, ref, household.id, currentUser.uid);
+              }
+            },
+          ),
+          const Divider(height: 32),
+
+          // Account & Security
+          Text(
+            language == AppLanguage.tamil ? 'பாதுகாப்பு & கணக்கு' : 'Account & Security',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
+          ),
+          const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.15), shape: BoxShape.circle),
+              child: const Icon(Icons.key_outlined, color: Colors.blue),
+            ),
+            title: Text(AppStrings.tr(language, 'recovery_key_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(AppStrings.tr(language, 'recovery_key_settings_sub')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              if (currentUser != null) {
+                _showRecoveryKeyDialog(context, ref, currentUser.uid);
               }
             },
           ),

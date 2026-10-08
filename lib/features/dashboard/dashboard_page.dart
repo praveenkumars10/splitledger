@@ -129,7 +129,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _showWalletDialog(double currentAmount, String uid) {
@@ -228,7 +228,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _showAmountFilter() {
@@ -288,7 +288,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
       ),
-    );
+    ).then((_) {
+      minController.dispose();
+      maxController.dispose();
+    });
   }
 
   @override
@@ -418,6 +421,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
           PopupMenuButton<String>(
             tooltip: AppStrings.tr(language, 'filter_options'),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            elevation: 4,
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12.0),
               child: Row(
@@ -444,51 +449,94 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                   break;
               }
             },
-            itemBuilder: (context) => [
-              PopupMenuItem(
-                value: 'Search',
-                child: Row(
-                  children: [
-                    const Icon(Icons.search, size: 18),
-                    const SizedBox(width: 8),
-                    Text(AppStrings.tr(language, 'search_title')),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'DateRange',
-                child: Row(
-                  children: [
-                    const Icon(Icons.date_range, size: 18),
-                    const SizedBox(width: 8),
-                    const Text('Select Date Range'),
-                  ],
-                ),
-              ),
-              PopupMenuItem(
-                value: 'Amount',
-                child: Row(
-                  children: [
-                    const Icon(Icons.tune, size: 18),
-                    const SizedBox(width: 8),
-                    Text(AppStrings.tr(language, 'filter_by_amount')),
-                  ],
-                ),
-              ),
-              if (_hasActiveFilters) ...[
-                const PopupMenuDivider(),
+            itemBuilder: (context) {
+              final colorScheme = Theme.of(context).colorScheme;
+              return [
                 PopupMenuItem(
-                  value: 'Clear',
+                  value: 'Search',
                   child: Row(
                     children: [
-                      const Icon(Icons.clear_all, size: 18, color: Colors.red),
-                      const SizedBox(width: 8),
-                      Text(AppStrings.tr(language, 'clear_filter'), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.search, size: 18, color: Colors.blue),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        AppStrings.tr(language, 'search_title'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ],
+                PopupMenuItem(
+                  value: 'DateRange',
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.purple.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.date_range, size: 18, color: Colors.purple),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        AppStrings.tr(language, 'select_date_range'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'Amount',
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.tune, size: 18, color: Colors.orange),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        AppStrings.tr(language, 'filter_by_amount'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_hasActiveFilters) ...[
+                  const PopupMenuDivider(),
+                  PopupMenuItem(
+                    value: 'Clear',
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.clear_all, size: 18, color: Colors.red),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          AppStrings.tr(language, 'clear_filter'),
+                          style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ];
+            },
           ),
         ],
         bottom: PreferredSize(

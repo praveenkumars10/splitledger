@@ -96,6 +96,8 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
               _buildDetailRow(AppStrings.tr(language, 'category'), tx.category.toUpperCase()),
               _buildDetailRow(AppStrings.tr(language, 'by_header'), isMe ? AppStrings.tr(language, 'you') : (tx.paidByName.isNotEmpty ? tx.paidByName : partnerName)),
               _buildDetailRow(AppStrings.tr(language, 'date_time'), _dateFormat.format(tx.date)),
+              if (tx.dueDate != null)
+                _buildDetailRow(AppStrings.tr(language, 'due_date'), _dateFormat.format(tx.dueDate!)),
               if (tx.recurrence != RecurrenceInterval.none)
                 _buildDetailRow(AppStrings.tr(language, 'repeat'), tx.recurrence.name.toUpperCase()),
               const SizedBox(height: 24),
@@ -136,7 +138,28 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                       label: Text(AppStrings.tr(language, 'delete')),
                       onPressed: () async {
                         final household = ref.read(currentHouseholdProvider).asData?.value;
-                        if (household != null) {
+                        if (household == null) return;
+
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogCtx) => AlertDialog(
+                            title: Text(AppStrings.tr(language, 'delete_tx_title')),
+                            content: Text(AppStrings.tr(language, 'delete_tx_confirm')),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(dialogCtx, false),
+                                child: Text(AppStrings.tr(language, 'cancel')),
+                              ),
+                              FilledButton(
+                                style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+                                onPressed: () => Navigator.pop(dialogCtx, true),
+                                child: Text(AppStrings.tr(language, 'delete')),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true && context.mounted) {
                           Navigator.pop(context);
                           await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
                           if (context.mounted) {

@@ -39,6 +39,10 @@ class MyApp extends ConsumerWidget {
           brightness: Brightness.light,
         ),
         useMaterial3: true,
+        popupMenuTheme: PopupMenuThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          iconColor: themeSettings.accentColor.color,
+        ),
       ),
       darkTheme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
@@ -46,6 +50,10 @@ class MyApp extends ConsumerWidget {
           brightness: Brightness.dark,
         ),
         useMaterial3: true,
+        popupMenuTheme: PopupMenuThemeData(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          iconColor: themeSettings.accentColor.color,
+        ),
       ),
       home: const AuthGate(),
     );

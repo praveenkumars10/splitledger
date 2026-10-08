@@ -12,6 +12,7 @@ class TransactionModel {
   final String paidByName;
   final String? note;
   final String? receiptUrl;
+  final String? counterpartyUid;
   final DateTime date;
   final DateTime? dueDate;
   final TransactionType type;
@@ -31,6 +32,7 @@ class TransactionModel {
     required this.paidByName,
     this.note,
     this.receiptUrl,
+    this.counterpartyUid,
     required this.date,
     this.dueDate,
     this.type = TransactionType.paid,
@@ -46,6 +48,23 @@ class TransactionModel {
   final DateTime? recurrenceEndDate;
   final DateTime? nextOccurrence;
 
+  static DateTime calculateNextOccurrence(DateTime from, RecurrenceInterval interval) {
+    switch (interval) {
+      case RecurrenceInterval.daily:
+        return from.add(const Duration(days: 1));
+      case RecurrenceInterval.weekly:
+        return from.add(const Duration(days: 7));
+      case RecurrenceInterval.biweekly:
+        return from.add(const Duration(days: 14));
+      case RecurrenceInterval.monthly:
+        return DateTime(from.year, from.month + 1, from.day, from.hour, from.minute);
+      case RecurrenceInterval.yearly:
+        return DateTime(from.year + 1, from.month, from.day, from.hour, from.minute);
+      case RecurrenceInterval.none:
+        return from;
+    }
+  }
+
   factory TransactionModel.fromMap(Map<String, dynamic> map, String id) {
     return TransactionModel(
       id: id,
@@ -55,6 +74,7 @@ class TransactionModel {
       paidByName: map['paidByName'] ?? '',
       note: map['note'],
       receiptUrl: map['receiptUrl'],
+      counterpartyUid: map['counterpartyUid'],
       date: (map['date'] as Timestamp).toDate(),
       dueDate: map['dueDate'] != null ? (map['dueDate'] as Timestamp).toDate() : null,
       type: map['type'] == 'received' ? TransactionType.received : TransactionType.paid,
@@ -65,7 +85,12 @@ class TransactionModel {
       splitShares: (map['splitShares'] as Map<String, dynamic>?)?.map(
         (k, v) => MapEntry(k, (v as num).toDouble()),
       ),
-      recurrence: map['recurrence'] != null ? RecurrenceInterval.values.firstWhere((e) => e.toString().split('.').last == map['recurrence']) : RecurrenceInterval.none,
+      recurrence: map['recurrence'] != null
+          ? RecurrenceInterval.values.firstWhere(
+              (e) => e.name == map['recurrence'] || e.toString().split('.').last == map['recurrence'],
+              orElse: () => RecurrenceInterval.none,
+            )
+          : RecurrenceInterval.none,
       recurrenceEndDate: map['recurrenceEndDate'] != null ? (map['recurrenceEndDate'] as Timestamp).toDate() : null,
       nextOccurrence: map['nextOccurrence'] != null ? (map['nextOccurrence'] as Timestamp).toDate() : null,
     );
@@ -79,6 +104,7 @@ class TransactionModel {
     String? paidByName,
     String? note,
     String? receiptUrl,
+    String? counterpartyUid,
     DateTime? date,
     DateTime? dueDate,
     TransactionType? type,
@@ -96,6 +122,7 @@ class TransactionModel {
         paidByName: paidByName ?? this.paidByName,
         note: note ?? this.note,
         receiptUrl: receiptUrl ?? this.receiptUrl,
+        counterpartyUid: counterpartyUid ?? this.counterpartyUid,
         date: date ?? this.date,
         dueDate: dueDate ?? this.dueDate,
         type: type ?? this.type,
@@ -115,6 +142,7 @@ class TransactionModel {
       'paidByName': paidByName,
       'note': note,
       'receiptUrl': receiptUrl,
+      'counterpartyUid': counterpartyUid,
       'date': Timestamp.fromDate(date),
       'dueDate': dueDate != null ? Timestamp.fromDate(dueDate!) : null,
       'type': type == TransactionType.received ? 'received' : 'paid',
@@ -136,6 +164,7 @@ class TransactionModel {
       'paidByName': paidByName,
       'note': note,
       'receiptUrl': receiptUrl,
+      'counterpartyUid': counterpartyUid,
       'date': date.toIso8601String(),
       'dueDate': dueDate?.toIso8601String(),
       'type': type == TransactionType.received ? 'received' : 'paid',
@@ -170,6 +199,7 @@ class TransactionModel {
       paidByName: json['paidByName'] ?? '',
       note: json['note'],
       receiptUrl: json['receiptUrl'],
+      counterpartyUid: json['counterpartyUid'],
       date: parseDate(json['date']),
       dueDate: parseNullableDate(json['dueDate']),
       type: json['type'] == 'received' ? TransactionType.received : TransactionType.paid,

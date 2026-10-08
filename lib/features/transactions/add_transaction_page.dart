@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/categories.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../models/transaction_model.dart';
@@ -23,28 +24,12 @@ class AddTransactionPage extends ConsumerStatefulWidget {
 class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  String _selectedCategory = 'food';
   late DateTime _selectedDate;
   DateTime? _dueDate;
   bool _isLoading = false;
   HouseholdMember? _selectedUser;
   bool _initialized = false;
-
-  DateTime _calculateNext(DateTime from, RecurrenceInterval interval) {
-    switch (interval) {
-      case RecurrenceInterval.daily:
-        return from.add(const Duration(days: 1));
-      case RecurrenceInterval.weekly:
-        return from.add(const Duration(days: 7));
-      case RecurrenceInterval.biweekly:
-        return from.add(const Duration(days: 14));
-      case RecurrenceInterval.monthly:
-        return DateTime(from.year, from.month + 1, from.day, from.hour, from.minute);
-      case RecurrenceInterval.yearly:
-        return DateTime(from.year + 1, from.month, from.day, from.hour, from.minute);
-      case RecurrenceInterval.none:
-        return from;
-    }
-  }
 
   // Recurrence state
   RecurrenceInterval _selectedRecurrence = RecurrenceInterval.none;
@@ -70,6 +55,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     if (tx != null) {
       _amountController.text = tx.amount.toStringAsFixed(tx.amount % 1 == 0 ? 0 : 2);
       _noteController.text = tx.note ?? '';
+      _selectedCategory = tx.category.isNotEmpty ? tx.category : 'food';
       _selectedDate = tx.date;
       _dueDate = tx.dueDate;
       _selectedRecurrence = tx.recurrence;
@@ -77,6 +63,48 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     } else {
       _selectedDate = DateTime.now();
     }
+  }
+
+  void _selectCategory(AppCategory cat, AppLanguage language) {
+    final catName = cat.getLocalizedName(language);
+    final tag = '${cat.emoji} $catName';
+    setState(() {
+      _selectedCategory = cat.id;
+      final currentNote = _noteController.text.trim();
+      if (currentNote.isEmpty) {
+        _noteController.text = tag;
+      } else {
+        bool isOnlyCategoryTag = false;
+        for (final otherCat in appCategories) {
+          final otherTag = '${otherCat.emoji} ${otherCat.getLocalizedName(language)}';
+          if (currentNote == otherTag || currentNote == otherCat.getLocalizedName(language)) {
+            isOnlyCategoryTag = true;
+            break;
+          }
+        }
+        if (isOnlyCategoryTag) {
+          _noteController.text = tag;
+        } else if (!currentNote.contains(tag) && !currentNote.contains(cat.emoji)) {
+          _noteController.text = '$tag $currentNote';
+        }
+      }
+    });
+  }
+
+  void _removeCategory(AppCategory cat, AppLanguage language) {
+    final catName = cat.getLocalizedName(language);
+    final tag = '${cat.emoji} $catName';
+    setState(() {
+      String updated = _noteController.text;
+      updated = updated.replaceAll(tag, '');
+      updated = updated.replaceAll(cat.emoji, '');
+      updated = updated.replaceAll(catName, '');
+      updated = updated.replaceAll(RegExp(r'\s+'), ' ').trim();
+      _noteController.text = updated;
+      if (_selectedCategory == cat.id) {
+        _selectedCategory = 'other';
+      }
+    });
   }
 
   Future<void> _selectDate(BuildContext context) async {
@@ -151,10 +179,10 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       final tx = TransactionModel(
         id: _isEditing ? widget.transaction!.id : '',
         amount: amount,
-        category: 'general',
+        category: _selectedCategory,
         paidByUid: paidByUser.uid,
         paidByName: paidByUser.name,
-        note: _noteController.text.trim(),
+        note: _noteController.text.trim().isEmpty ? _selectedCategory : _noteController.text.trim(),
         date: _selectedDate,
         dueDate: _dueDate,
         type: widget.type,
@@ -163,7 +191,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         splitShares: widget.transaction?.splitShares,
         recurrence: _selectedRecurrence,
         recurrenceEndDate: _recurrenceEndDate,
-        nextOccurrence: _selectedRecurrence == RecurrenceInterval.none ? null : _calculateNext(_selectedDate, _selectedRecurrence),
+        nextOccurrence: _selectedRecurrence == RecurrenceInterval.none ? null : TransactionModel.calculateNextOccurrence(_selectedDate, _selectedRecurrence),
       );
 
       if (_isEditing) {
@@ -289,30 +317,46 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                   SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
-                      children: [
-                        ('food', '🍔 ${AppStrings.tr(language, 'food')}'),
-                        ('grocery', '🛒 ${AppStrings.tr(language, 'grocery')}'),
-                        ('fuel', '🚗 ${AppStrings.tr(language, 'fuel')}'),
-                        ('tea', '☕ ${AppStrings.tr(language, 'tea')}'),
-                        ('bills', '💡 ${AppStrings.tr(language, 'bills')}'),
-                        ('rent', '🏠 ${AppStrings.tr(language, 'rent')}'),
-                        ('shopping', '🛍️ ${AppStrings.tr(language, 'shopping')}'),
-                        ('medical', '💊 ${AppStrings.tr(language, 'medical')}'),
-                        ('entertainment', '🎬 ${AppStrings.tr(language, 'entertainment')}'),
-                        ('settle', '💵 ${AppStrings.tr(language, 'settle')}'),
-                      ].map((item) {
-                        final tag = item.$2;
+                      children: appCategories.map((cat) {
+                        final catName = cat.getLocalizedName(language);
+                        final tag = '${cat.emoji} $catName';
+                        final isSelected = _selectedCategory == cat.id &&
+                            (_noteController.text.contains(tag) ||
+                             _noteController.text.contains(cat.emoji) ||
+                             _noteController.text.contains(catName));
                         return Padding(
                           padding: const EdgeInsets.only(right: 6.0),
-                          child: ActionChip(
-                            label: Text(tag, style: const TextStyle(fontSize: 12)),
+                          child: InputChip(
+                            avatar: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: cat.color.withValues(alpha: isSelected ? 0.25 : 0.12),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(cat.icon, size: 14, color: cat.color),
+                            ),
+                            label: Text(
+                              tag,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: cat.color.withValues(alpha: 0.18),
                             backgroundColor: Theme.of(context).cardColor,
-                            side: BorderSide(color: Theme.of(context).dividerColor),
-                            onPressed: () {
-                              if (_noteController.text.trim().isEmpty) {
-                                _noteController.text = tag;
-                              } else if (!_noteController.text.contains(tag)) {
-                                _noteController.text = '${_noteController.text} $tag';
+                            side: BorderSide(
+                              color: isSelected ? cat.color : Theme.of(context).dividerColor,
+                              width: isSelected ? 1.5 : 1,
+                            ),
+                            deleteIcon: isSelected ? Icon(Icons.cancel, size: 16, color: cat.color) : null,
+                            deleteButtonTooltipMessage: 'Remove $catName',
+                            onDeleted: isSelected ? () => _removeCategory(cat, language) : null,
+                            onSelected: (selected) {
+                              if (selected) {
+                                _selectCategory(cat, language);
+                              } else {
+                                _removeCategory(cat, language);
                               }
                             },
                           ),
@@ -328,6 +372,18 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                     decoration: InputDecoration(
                       hintText: AppStrings.tr(language, 'note_optional_hint'),
                       prefixIcon: const Icon(Icons.note_alt_outlined),
+                      suffixIcon: _noteController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 20),
+                              tooltip: 'Clear note',
+                              onPressed: () {
+                                setState(() {
+                                  _noteController.clear();
+                                  _selectedCategory = 'other';
+                                });
+                              },
+                            )
+                          : null,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: BorderSide(color: Theme.of(context).dividerColor),
@@ -337,6 +393,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                         borderSide: BorderSide(color: Theme.of(context).dividerColor),
                       ),
                     ),
+                    onChanged: (_) => setState(() {}),
                   ),
                   const SizedBox(height: 16),
 

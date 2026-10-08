@@ -5,11 +5,13 @@ import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../models/transaction_model.dart';
 import '../dashboard/dashboard_page.dart';
+import '../household/current_household_provider.dart';
 import '../reports/reports_page.dart';
 import '../split/split_summary_page.dart';
 import '../transactions/add_transaction_page.dart';
 import '../transactions/quick_add_bottom_sheet.dart';
 import '../transactions/transaction_history_page.dart';
+import '../transactions/transaction_repository.dart';
 
 class MainPage extends ConsumerStatefulWidget {
   const MainPage({super.key});
@@ -20,6 +22,17 @@ class MainPage extends ConsumerStatefulWidget {
 
 class _MainPageState extends ConsumerState<MainPage> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final household = ref.read(currentHouseholdProvider).asData?.value;
+      if (household != null) {
+        ref.read(transactionRepositoryProvider).generateRecurringTransactions(household.id);
+      }
+    });
+  }
 
   final List<Widget> _pages = const [
     DashboardPage(),
@@ -116,6 +129,13 @@ class _MainPageState extends ConsumerState<MainPage> {
   Widget build(BuildContext context) {
     final language = ref.watch(languageControllerProvider);
     final theme = Theme.of(context);
+
+    ref.listen(currentHouseholdProvider, (previous, next) {
+      final household = next.asData?.value;
+      if (household != null && previous?.asData?.value?.id != household.id) {
+        ref.read(transactionRepositoryProvider).generateRecurringTransactions(household.id);
+      }
+    });
 
     return Scaffold(
       body: IndexedStack(

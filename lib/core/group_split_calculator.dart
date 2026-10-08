@@ -5,8 +5,16 @@ class SettlementTransaction {
   final String from;
   final String to;
   final double amount;
+  final String fromUid;
+  final String toUid;
 
-  const SettlementTransaction({required this.from, required this.to, required this.amount});
+  const SettlementTransaction({
+    required this.from,
+    required this.to,
+    required this.amount,
+    this.fromUid = '',
+    this.toUid = '',
+  });
 
   @override
   String toString() => '$from -> $to: Rs.${amount.toStringAsFixed(2)}';
@@ -76,20 +84,25 @@ GroupSplitResult calculateGroupSplit({
       }
     } else if (tx.type == TransactionType.received) {
       // Treat "received" as an internal settlement.
-      // The receiver's "paid" amount drops.
-      paidMap[tx.paidByUid] = (paidMap[tx.paidByUid] ?? 0) - tx.amount;
-
-      final otherMembers = members.where((m) => m.uid != tx.paidByUid).toList();
-      if (otherMembers.isNotEmpty) {
-        // The settlement payment is assumed to be contributed equally by all other members.
-        final splitPayment = tx.amount / otherMembers.length;
-        for (final m in otherMembers) {
-          paidMap[m.uid] = (paidMap[m.uid] ?? 0) + splitPayment;
-        }
+      if (tx.counterpartyUid != null && tx.counterpartyUid!.isNotEmpty && paidMap.containsKey(tx.counterpartyUid)) {
+        // Direct settlement: receiver (paidByUid) drops, payer (counterpartyUid) gains credit
+        paidMap[tx.paidByUid] = (paidMap[tx.paidByUid] ?? 0) - tx.amount;
+        paidMap[tx.counterpartyUid!] = (paidMap[tx.counterpartyUid!] ?? 0) + tx.amount;
       } else {
-        // Fallback for 1-person group: just reduce total expense.
-        totalExpense -= tx.amount;
-        shareMap[tx.paidByUid] = (shareMap[tx.paidByUid] ?? 0) - tx.amount;
+        // Fallback for general received or 2-member group:
+        paidMap[tx.paidByUid] = (paidMap[tx.paidByUid] ?? 0) - tx.amount;
+
+        final otherMembers = members.where((m) => m.uid != tx.paidByUid).toList();
+        if (otherMembers.isNotEmpty) {
+          final splitPayment = tx.amount / otherMembers.length;
+          for (final m in otherMembers) {
+            paidMap[m.uid] = (paidMap[m.uid] ?? 0) + splitPayment;
+          }
+        } else {
+          // Fallback for 1-person group: just reduce total expense.
+          totalExpense -= tx.amount;
+          shareMap[tx.paidByUid] = (shareMap[tx.paidByUid] ?? 0) - tx.amount;
+        }
       }
     }
   }
@@ -159,7 +172,13 @@ List<SettlementTransaction> _minimizeSettlements(List<MemberBalance> balances) {
     if (debt < 0.001 || credit < 0.001) break;
 
     final amount = debt < credit ? debt : credit;
-    settlements.add(SettlementTransaction(from: debtors[i].name, to: creditors[j].name, amount: amount));
+    settlements.add(SettlementTransaction(
+      from: debtors[i].name,
+      to: creditors[j].name,
+      amount: amount,
+      fromUid: debtors[i].uid,
+      toUid: creditors[j].uid,
+    ));
 
     // Debtor pays their debt -> their share decreases, creditor's share increases.
     final newDebtorShare = debtors[i].share - amount;

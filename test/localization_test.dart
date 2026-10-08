@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:split_ledger/core/categories.dart';
 import 'package:split_ledger/core/localization/app_strings.dart';
 import 'package:split_ledger/core/localization/language_controller.dart';
 
@@ -65,6 +66,20 @@ void main() {
         expect(lang.code, isNotEmpty);
         expect(lang.label, isNotEmpty);
         expect(lang.flag, isNotEmpty);
+      }
+    });
+
+    test('All AppCategories have valid icons, colors, and bilingual translations', () {
+      for (final cat in appCategories) {
+        expect(cat.id, isNotEmpty);
+        expect(cat.emoji, isNotEmpty);
+        expect(cat.color, isNotNull);
+        final enName = cat.getLocalizedName(AppLanguage.english);
+        final taName = cat.getLocalizedName(AppLanguage.tamil);
+        expect(enName, isNotEmpty);
+        expect(taName, isNotEmpty);
+        expect(enName, isNot(equals(cat.id)));
+        expect(taName, isNot(equals(cat.id)));
       }
     });
   });

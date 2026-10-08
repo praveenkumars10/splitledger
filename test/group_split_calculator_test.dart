@@ -238,6 +238,39 @@ void main() {
       expect(result.totalExpense, 0);
       expect(result.isSettled, isTrue);
     });
+
+    test('3 members direct settlement with counterpartyUid settles correct pair', () {
+      final result = calculateGroupSplit(
+        transactions: [
+          // A pays 300 for the group (A, B, C share 100 each)
+          _tx(id: '1', paidByUid: 'a', paidByName: 'User A', amount: 300),
+          // B settles with A directly: gives 100 to A
+          TransactionModel(
+            id: '2',
+            amount: 100,
+            category: 'settlement',
+            paidByUid: 'a',
+            paidByName: 'User A',
+            counterpartyUid: 'b',
+            date: DateTime.now(),
+            type: TransactionType.received,
+            createdAt: DateTime.now(),
+          ),
+        ],
+        members: [a, b, c],
+      );
+
+      final balanceA = result.balances.firstWhere((b) => b.uid == 'a');
+      final balanceB = result.balances.firstWhere((b) => b.uid == 'b');
+      final balanceC = result.balances.firstWhere((b) => b.uid == 'c');
+
+      expect(balanceB.net, 0.0); // B is completely settled!
+      expect(balanceA.net, 100.0); // A is still owed 100 (from C)
+      expect(balanceC.net, -100.0); // C still owes 100
+      expect(result.settlements.length, 1);
+      expect(result.settlements.first.from, 'User C');
+      expect(result.settlements.first.to, 'User A');
+    });
   });
 
   group('wallet balance calculation', () {
@@ -265,3 +298,5 @@ void main() {
     });
   });
 }
+
+

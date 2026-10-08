@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/categories.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../models/household_model.dart';
@@ -34,20 +35,28 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
   String? _selectedPayerUid;
   bool _isLoading = false;
 
-  final List<(String, IconData)> _categories = const [
-    ('food', Icons.restaurant),
-    ('tea', Icons.coffee),
-    ('fuel', Icons.local_gas_station),
-    ('grocery', Icons.shopping_cart),
-    ('rent', Icons.home),
-    ('bills', Icons.receipt_long),
-    ('entertainment', Icons.movie),
-    ('shopping', Icons.shopping_bag),
-    ('medical', Icons.medical_services),
-    ('other', Icons.category),
-  ];
-
   final List<int> _quickAmounts = [10, 20, 30, 50, 70, 100, 200, 500];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _noteController.text.isEmpty) {
+        final language = ref.read(languageControllerProvider);
+        final defaultCat = appCategories.first;
+        setState(() {
+          _noteController.text = '${defaultCat.emoji} ${defaultCat.getLocalizedName(language)}';
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _noteController.dispose();
+    super.dispose();
+  }
 
   void _addQuickAmount(int val) {
     final currentText = _amountController.text.trim();
@@ -251,30 +260,55 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: Row(
-                  children: _categories.map((cat) {
-                    final isSelected = _selectedCategory == cat.$1;
-                    final catLabel = AppStrings.tr(language, cat.$1);
+                  children: appCategories.map((cat) {
+                    final isSelected = _selectedCategory == cat.id;
+                    final catLabel = cat.getLocalizedName(language);
+                    final tag = '${cat.emoji} $catLabel';
                     return Padding(
                       padding: const EdgeInsets.only(right: 8.0),
-                      child: ChoiceChip(
-                        avatar: Icon(
-                          cat.$2,
-                          size: 16,
-                          color: isSelected
-                              ? Theme.of(context).colorScheme.onPrimary
-                              : onSurfaceVariant,
+                      child: InputChip(
+                        avatar: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: cat.color.withValues(alpha: isSelected ? 0.25 : 0.12),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(cat.icon, size: 14, color: cat.color),
                         ),
-                        label: Text(catLabel),
+                        label: Text(
+                          tag,
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                            color: isSelected ? Theme.of(context).colorScheme.onSurface : onSurfaceVariant,
+                          ),
+                        ),
                         selected: isSelected,
-                        onSelected: (val) {
-                          if (val) {
-                            setState(() {
-                              _selectedCategory = cat.$1;
-                              if (_noteController.text.trim().isEmpty) {
-                                _noteController.text = catLabel;
+                        selectedColor: cat.color.withValues(alpha: 0.18),
+                        backgroundColor: Theme.of(context).cardColor,
+                        side: BorderSide(
+                          color: isSelected ? cat.color : Theme.of(context).dividerColor,
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                        deleteIcon: isSelected ? Icon(Icons.cancel, size: 16, color: cat.color) : null,
+                        onDeleted: isSelected
+                            ? () {
+                                setState(() {
+                                  _selectedCategory = 'other';
+                                  _noteController.clear();
+                                });
                               }
-                            });
-                          }
+                            : null,
+                        onSelected: (val) {
+                          setState(() {
+                            if (val) {
+                              _selectedCategory = cat.id;
+                              _noteController.text = tag;
+                            } else {
+                              _selectedCategory = 'other';
+                              _noteController.clear();
+                            }
+                          });
                         },
                       ),
                     );
@@ -289,10 +323,23 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
                 decoration: InputDecoration(
                   hintText: AppStrings.tr(language, 'note_optional_hint'),
                   prefixIcon: const Icon(Icons.edit_note),
+                  suffixIcon: _noteController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          tooltip: 'Clear',
+                          onPressed: () {
+                            setState(() {
+                              _noteController.clear();
+                              _selectedCategory = 'other';
+                            });
+                          },
+                        )
+                      : null,
                   filled: true,
                   fillColor: Theme.of(context).cardColor,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
                 ),
+                onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 16),
 

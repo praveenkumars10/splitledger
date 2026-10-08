@@ -71,25 +71,14 @@ class HouseholdRepository {
   }
 
   Stream<Household?> watchUserHousehold(String uid) {
-    return _firestore.collection('households')
-        // Firestore arrays with maps can't be queried with arrayContains cleanly unless it's exactly the same map
-        // As a workaround, we listen to all households this user is in by keeping a flat array of UIDs or doing it client side.
-        // For our scale, we'll listen to households where uid is present (we need to change model to support this, or query all and filter).
-        // Best practice: add an array 'memberIds' for querying.
-        // Let's assume memberIds is not there, we'll query and map on client for this demo, or we'll update the create/join to include memberIds.
+    return _firestore
+        .collection('households')
+        .where('memberUids', arrayContains: uid)
         .snapshots()
         .map((snapshot) {
-          try {
-            final doc = snapshot.docs.firstWhere(
-              (d) {
-                final members = d.data()['members'] as List<dynamic>? ?? [];
-                return members.any((m) => m['uid'] == uid);
-              }
-            );
-            return Household.fromMap(doc.data(), doc.id);
-          } catch (e) {
-            return null;
-          }
+          if (snapshot.docs.isEmpty) return null;
+          final doc = snapshot.docs.first;
+          return Household.fromMap(doc.data(), doc.id);
         });
   }
 

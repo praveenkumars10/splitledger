@@ -99,10 +99,10 @@ class TransactionRepository {
           .doc(householdId)
           .collection('transactions')
           .doc();
-      batch.set(newDocRef, tx.copyWith(id: newDocRef.id, date: tx.nextOccurrence!, nextOccurrence: _calculateNext(tx.nextOccurrence!, tx.recurrence)).toMap());
+      final next = TransactionModel.calculateNextOccurrence(tx.nextOccurrence!, tx.recurrence);
+      batch.set(newDocRef, tx.copyWith(id: newDocRef.id, date: tx.nextOccurrence!, nextOccurrence: next).toMap());
 
       // Compute next occurrence for the original transaction
-      final next = _calculateNext(tx.nextOccurrence!, tx.recurrence);
       if (tx.recurrenceEndDate != null && next.isAfter(tx.recurrenceEndDate!)) {
         // End of recurrence: clear recurrence fields
         batch.update(doc.reference, {
@@ -114,23 +114,6 @@ class TransactionRepository {
       }
     }
     await batch.commit();
-  }
-
-  DateTime _calculateNext(DateTime from, RecurrenceInterval interval) {
-    switch (interval) {
-      case RecurrenceInterval.daily:
-        return from.add(const Duration(days: 1));
-      case RecurrenceInterval.weekly:
-        return from.add(const Duration(days: 7));
-      case RecurrenceInterval.biweekly:
-        return from.add(const Duration(days: 14));
-      case RecurrenceInterval.monthly:
-        return DateTime(from.year, from.month + 1, from.day, from.hour, from.minute);
-      case RecurrenceInterval.yearly:
-        return DateTime(from.year + 1, from.month, from.day, from.hour, from.minute);
-      case RecurrenceInterval.none:
-        return from;
-    }
   }
   Stream<List<TransactionModel>> watchTransactions(String householdId, {DateTime? startDate, DateTime? endDate}) {
     var query = _firestore
