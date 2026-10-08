@@ -15,107 +15,132 @@ import '../transactions/transaction_repository.dart';
 import '../household/household_repository.dart';
 import '../wallet/wallet_repository.dart';
 
+class _RecoveryKeyDialog extends ConsumerStatefulWidget {
+  final String uid;
+  const _RecoveryKeyDialog({required this.uid});
+
+  @override
+  ConsumerState<_RecoveryKeyDialog> createState() => _RecoveryKeyDialogState();
+}
+
+class _RecoveryKeyDialogState extends ConsumerState<_RecoveryKeyDialog> {
+  late final TextEditingController _controller;
+  bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSave() async {
+    final language = ref.read(languageControllerProvider);
+    final key = _controller.text.trim();
+    if (key.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(authControllerProvider).updateRecoveryKey(widget.uid, key);
+      if (mounted) {
+        Navigator.of(context).pop();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppStrings.tr(language, 'recovery_key_saved')),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final language = ref.watch(languageControllerProvider);
+
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(Icons.key, color: Colors.blue),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              AppStrings.tr(language, 'recovery_key_settings'),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ),
+        ],
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            AppStrings.tr(language, 'recovery_key_desc'),
+            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autofocus: true,
+            decoration: InputDecoration(
+              labelText: AppStrings.tr(language, 'recovery_key'),
+              hintText: AppStrings.tr(language, 'recovery_key_hint'),
+              prefixIcon: const Icon(Icons.shield_outlined),
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
+          child: Text(AppStrings.tr(language, 'cancel')),
+        ),
+        FilledButton(
+          onPressed: _isLoading ? null : _handleSave,
+          child: _isLoading
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text(AppStrings.tr(language, 'save')),
+        ),
+      ],
+    );
+  }
+}
+
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
 
-  void _showRecoveryKeyDialog(BuildContext context, WidgetRef ref, String uid) {
-    final language = ref.read(languageControllerProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    final controller = TextEditingController();
-
+  void _showRecoveryKeyDialog(BuildContext context, String uid) {
     showDialog(
       context: context,
-      builder: (dialogCtx) {
-        bool isLoading = false;
-        return StatefulBuilder(
-          builder: (dialogCtx, setDialogState) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.key, color: Colors.blue),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    AppStrings.tr(language, 'recovery_key_settings'),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  AppStrings.tr(language, 'recovery_key_desc'),
-                  style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: controller,
-                  autofocus: true,
-                  decoration: InputDecoration(
-                    labelText: AppStrings.tr(language, 'recovery_key'),
-                    hintText: AppStrings.tr(language, 'recovery_key_hint'),
-                    prefixIcon: const Icon(Icons.shield_outlined),
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: isLoading ? null : () => Navigator.of(dialogCtx).pop(),
-                child: Text(AppStrings.tr(language, 'cancel')),
-              ),
-              FilledButton(
-                onPressed: isLoading
-                    ? null
-                    : () async {
-                        final key = controller.text.trim();
-                        if (key.isEmpty) {
-                          messenger.showSnackBar(
-                            SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
-                          );
-                          return;
-                        }
-                        setDialogState(() => isLoading = true);
-                        try {
-                          await ref.read(authControllerProvider).updateRecoveryKey(uid, key);
-                          if (dialogCtx.mounted) {
-                            Navigator.of(dialogCtx).pop();
-                          }
-                          messenger.showSnackBar(
-                            SnackBar(
-                              content: Text(AppStrings.tr(language, 'recovery_key_saved')),
-                              backgroundColor: Colors.green,
-                            ),
-                          );
-                        } catch (e) {
-                          if (dialogCtx.mounted) {
-                            setDialogState(() => isLoading = false);
-                          }
-                          messenger.showSnackBar(
-                            SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                          );
-                        }
-                      },
-                child: isLoading
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : Text(AppStrings.tr(language, 'save')),
-              ),
-            ],
-          ),
-        );
-      },
-    ).then((_) => controller.dispose());
+      builder: (context) => _RecoveryKeyDialog(uid: uid),
+    );
   }
 
   void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
@@ -564,7 +589,7 @@ class SettingsPage extends ConsumerWidget {
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               if (currentUser != null) {
-                _showRecoveryKeyDialog(context, ref, currentUser.uid);
+                _showRecoveryKeyDialog(context, currentUser.uid);
               }
             },
           ),
