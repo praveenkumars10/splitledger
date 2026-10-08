@@ -11,7 +11,8 @@ enum AppThemeColor {
   amberGold(Color(0xFFD97706), 'Amber Gold', 'தங்க நிறம்'),
   royalIndigo(Color(0xFF4338CA), 'Royal Indigo', 'ராயல் இண்டிகோ'),
   rubyCrimson(Color(0xFFE11D48), 'Ruby Crimson', 'ரூபி சிவப்பு'),
-  slateCharcoal(Color(0xFF334155), 'Slate Charcoal', 'ஸ்லேட் சாம்பல்');
+  slateCharcoal(Color(0xFF334155), 'Slate Charcoal', 'ஸ்லேட் சாம்பல்'),
+  rosePink(Color(0xFFEC4899), 'Rose Pink', 'ரோஸ் பிங்க்');
 
   final Color color;
   final String label;

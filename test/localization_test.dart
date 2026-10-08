@@ -85,7 +85,7 @@ void main() {
     });
 
     test('All AppThemeColors have valid colors, English and Tamil labels', () {
-      expect(AppThemeColor.values.length, 7);
+      expect(AppThemeColor.values.length, 8);
       for (final themeColor in AppThemeColor.values) {
         expect(themeColor.color, isNotNull);
         expect(themeColor.label, isNotEmpty);
