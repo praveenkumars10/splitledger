@@ -20,113 +20,117 @@ class SettingsPage extends ConsumerWidget {
 
   void _showRecoveryKeyDialog(BuildContext context, WidgetRef ref, String uid) {
     final language = ref.read(languageControllerProvider);
+    final messenger = ScaffoldMessenger.of(context);
     final controller = TextEditingController();
-    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+      builder: (dialogCtx) {
+        bool isLoading = false;
+        return StatefulBuilder(
+          builder: (dialogCtx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.key, color: Colors.blue),
                 ),
-                child: const Icon(Icons.key, color: Colors.blue),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  AppStrings.tr(language, 'recovery_key_settings'),
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    AppStrings.tr(language, 'recovery_key_settings'),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                AppStrings.tr(language, 'recovery_key_desc'),
-                style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-              ),
-              const SizedBox(height: 16),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                decoration: InputDecoration(
-                  labelText: AppStrings.tr(language, 'recovery_key'),
-                  hintText: AppStrings.tr(language, 'recovery_key_hint'),
-                  prefixIcon: const Icon(Icons.shield_outlined),
-                  border: const OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: isLoading ? null : () => Navigator.pop(context),
-              child: Text(AppStrings.tr(language, 'cancel')),
+              ],
             ),
-            FilledButton(
-              onPressed: isLoading
-                  ? null
-                  : () async {
-                      final key = controller.text.trim();
-                      if (key.isEmpty) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
-                        );
-                        return;
-                      }
-                      setState(() => isLoading = true);
-                      try {
-                        await ref.read(authControllerProvider).updateRecoveryKey(uid, key);
-                        if (context.mounted) {
-                          Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  AppStrings.tr(language, 'recovery_key_desc'),
+                  style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr(language, 'recovery_key'),
+                    hintText: AppStrings.tr(language, 'recovery_key_hint'),
+                    prefixIcon: const Icon(Icons.shield_outlined),
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: isLoading ? null : () => Navigator.of(dialogCtx).pop(),
+                child: Text(AppStrings.tr(language, 'cancel')),
+              ),
+              FilledButton(
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final key = controller.text.trim();
+                        if (key.isEmpty) {
+                          messenger.showSnackBar(
+                            SnackBar(content: Text(AppStrings.tr(language, 'enter_recovery_key'))),
+                          );
+                          return;
+                        }
+                        setDialogState(() => isLoading = true);
+                        try {
+                          await ref.read(authControllerProvider).updateRecoveryKey(uid, key);
+                          if (dialogCtx.mounted) {
+                            Navigator.of(dialogCtx).pop();
+                          }
+                          messenger.showSnackBar(
                             SnackBar(
                               content: Text(AppStrings.tr(language, 'recovery_key_saved')),
                               backgroundColor: Colors.green,
                             ),
                           );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          setState(() => isLoading = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
+                        } catch (e) {
+                          if (dialogCtx.mounted) {
+                            setDialogState(() => isLoading = false);
+                          }
+                          messenger.showSnackBar(
                             SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
                           );
                         }
-                      }
-                    },
-              child: isLoading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : Text(AppStrings.tr(language, 'save')),
-            ),
-          ],
-        ),
-      ),
+                      },
+                child: isLoading
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(AppStrings.tr(language, 'save')),
+              ),
+            ],
+          ),
+        );
+      },
     ).then((_) => controller.dispose());
   }
 
   void _showWalletDialog(BuildContext context, WidgetRef ref, double currentAmount, String uid) {
     final language = ref.read(languageControllerProvider);
+    final messenger = ScaffoldMessenger.of(context);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final controller = TextEditingController(
       text: currentAmount > 0 ? currentAmount.toStringAsFixed(0) : '',
     );
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogCtx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
+            Icon(Icons.account_balance_wallet, color: Theme.of(dialogCtx).colorScheme.primary),
             const SizedBox(width: 8),
             Text(AppStrings.tr(language, 'wallet_amount')),
           ],
@@ -137,7 +141,7 @@ class SettingsPage extends ConsumerWidget {
           children: [
             Text(
               AppStrings.tr(language, 'wallet_desc'),
-              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+              style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -161,8 +165,8 @@ class SettingsPage extends ConsumerWidget {
                     padding: const EdgeInsets.only(right: 6.0),
                     child: ActionChip(
                       label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                      backgroundColor: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: Theme.of(dialogCtx).colorScheme.primary.withValues(alpha: 0.3)),
                       onPressed: () {
                         controller.text = preset.toString();
                       },
@@ -175,7 +179,7 @@ class SettingsPage extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.of(dialogCtx).pop(),
             child: Text(AppStrings.tr(language, 'cancel')),
           ),
           FilledButton(
@@ -189,48 +193,43 @@ class SettingsPage extends ConsumerWidget {
                 parsed = double.tryParse(raw);
               }
               if (parsed != null && parsed >= 0) {
-                Navigator.pop(context);
+                Navigator.of(dialogCtx).pop();
                 try {
                   await ref.read(walletRepositoryProvider).setWalletAmount(uid, parsed);
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${currencyFormat.format(parsed)}')),
-                    );
-                  }
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${currencyFormat.format(parsed)}')),
+                  );
                 } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error saving wallet: $e')),
-                    );
-                  }
-                }
-              } else {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Please enter a valid amount')),
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Error saving wallet: $e')),
                   );
                 }
+              } else {
+                messenger.showSnackBar(
+                  const SnackBar(content: Text('Please enter a valid amount')),
+                );
               }
             },
             child: Text(AppStrings.tr(language, 'save')),
           ),
         ],
       ),
-    );
+    ).then((_) => controller.dispose());
   }
 
   void _showRestoreDialog(BuildContext context, WidgetRef ref, String householdId, String currentUid) {
     final language = ref.read(languageControllerProvider);
+    final messenger = ScaffoldMessenger.of(context);
     final textController = TextEditingController();
     bool replaceExisting = false;
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.restore, color: Theme.of(context).colorScheme.primary),
+              Icon(Icons.restore, color: Theme.of(dialogCtx).colorScheme.primary),
               const SizedBox(width: 8),
               Text(AppStrings.tr(language, 'restore_import')),
             ],
@@ -242,7 +241,7 @@ class SettingsPage extends ConsumerWidget {
               children: [
                 Text(
                   AppStrings.tr(language, 'restore_import_sub'),
-                  style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
+                  style: TextStyle(fontSize: 13, color: Theme.of(dialogCtx).colorScheme.onSurface),
                 ),
                 const SizedBox(height: 12),
                 TextField(
@@ -261,7 +260,7 @@ class SettingsPage extends ConsumerWidget {
                   onPressed: () async {
                     final data = await Clipboard.getData('text/plain');
                     if (data?.text != null) {
-                      setState(() {
+                      setDialogState(() {
                         textController.text = data!.text!;
                       });
                     }
@@ -273,28 +272,27 @@ class SettingsPage extends ConsumerWidget {
                   title: Text(AppStrings.tr(language, 'replace_existing'), style: const TextStyle(fontSize: 13)),
                   subtitle: Text(AppStrings.tr(language, 'replace_existing_sub'), style: const TextStyle(fontSize: 11)),
                   value: replaceExisting,
-                  onChanged: (val) => setState(() => replaceExisting = val ?? false),
+                  onChanged: (val) => setDialogState(() => replaceExisting = val ?? false),
                 ),
               ],
             ),
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.of(dialogCtx).pop(),
               child: Text(AppStrings.tr(language, 'cancel')),
             ),
             FilledButton(
               onPressed: () async {
                 final jsonString = textController.text.trim();
                 if (jsonString.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  messenger.showSnackBar(
                     const SnackBar(content: Text('Please paste backup JSON content')),
                   );
                   return;
                 }
 
-                Navigator.pop(context);
-                final messenger = ScaffoldMessenger.of(context);
+                Navigator.of(dialogCtx).pop();
                 final result = await BackupRestoreService.restoreFromJson(
                   ref: ref,
                   householdId: householdId,
@@ -315,7 +313,7 @@ class SettingsPage extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ).then((_) => textController.dispose());
   }
 
   @override
@@ -643,10 +641,11 @@ class SettingsPage extends ConsumerWidget {
               subtitle: Text(household.name),
               trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
               onTap: () {
+                final messenger = ScaffoldMessenger.of(context);
                 final controller = TextEditingController(text: household.name);
                 showDialog(
                   context: context,
-                  builder: (context) => AlertDialog(
+                  builder: (dialogCtx) => AlertDialog(
                     title: Text(AppStrings.tr(language, 'edit_household_name')),
                     content: TextField(
                       controller: controller,
@@ -656,32 +655,30 @@ class SettingsPage extends ConsumerWidget {
                     ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () => Navigator.of(dialogCtx).pop(),
                         child: Text(AppStrings.tr(language, 'cancel')),
                       ),
                       TextButton(
                         onPressed: () async {
                           final newName = controller.text.trim();
                           if (newName.isNotEmpty && newName != household.name) {
-                            Navigator.pop(context);
+                            Navigator.of(dialogCtx).pop();
                             try {
                               await ref.read(householdRepositoryProvider).updateHouseholdName(household.id, newName);
                             } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
-                              }
+                              messenger.showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
                             }
                           } else {
-                            Navigator.pop(context);
+                            Navigator.of(dialogCtx).pop();
                           }
                         },
                         child: Text(AppStrings.tr(language, 'save')),
                       ),
                     ],
                   ),
-                );
+                ).then((_) => controller.dispose());
               },
             ),
           ] else ...[
