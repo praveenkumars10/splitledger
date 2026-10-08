@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:split_ledger/core/categories.dart';
 import 'package:split_ledger/core/localization/app_strings.dart';
 import 'package:split_ledger/core/localization/language_controller.dart';
+import 'package:split_ledger/core/theme/theme_controller.dart';
 
 void main() {
   group('App Localization & Translation Tests', () {
@@ -80,6 +81,17 @@ void main() {
         expect(taName, isNotEmpty);
         expect(enName, isNot(equals(cat.id)));
         expect(taName, isNot(equals(cat.id)));
+      }
+    });
+
+    test('All AppThemeColors have valid colors, English and Tamil labels', () {
+      expect(AppThemeColor.values.length, 7);
+      for (final themeColor in AppThemeColor.values) {
+        expect(themeColor.color, isNotNull);
+        expect(themeColor.label, isNotEmpty);
+        expect(themeColor.tamilLabel, isNotEmpty);
+        expect(themeColor.getLocalizedLabel(AppLanguage.english), equals(themeColor.label));
+        expect(themeColor.getLocalizedLabel(AppLanguage.tamil), equals(themeColor.tamilLabel));
       }
     });
   });

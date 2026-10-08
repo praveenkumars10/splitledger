@@ -393,7 +393,12 @@ class SettingsPage extends ConsumerWidget {
                       backgroundColor: colorItem.color,
                       radius: 8,
                     ),
-                    label: Text(colorItem.label),
+                    label: Text(
+                      colorItem.getLocalizedLabel(language),
+                      style: TextStyle(
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
                     selected: isSelected,
                     onSelected: (selected) {
                       if (selected) {

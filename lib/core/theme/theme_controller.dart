@@ -2,15 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/localization/language_controller.dart';
+
 enum AppThemeColor {
-  emerald(Color(0xFF0F766E), 'Emerald Green'),
-  deepPurple(Color(0xFF673AB7), 'Deep Purple'),
-  oceanBlue(Color(0xFF1976D2), 'Ocean Blue'),
-  amberGold(Color(0xFFD97706), 'Amber Gold');
+  emerald(Color(0xFF0F766E), 'Emerald Green', 'மரகத பச்சை'),
+  deepPurple(Color(0xFF673AB7), 'Deep Purple', 'அடர் ஊதா'),
+  oceanBlue(Color(0xFF1976D2), 'Ocean Blue', 'கடல் நீலம்'),
+  amberGold(Color(0xFFD97706), 'Amber Gold', 'தங்க நிறம்'),
+  royalIndigo(Color(0xFF4338CA), 'Royal Indigo', 'ராயல் இண்டிகோ'),
+  rubyCrimson(Color(0xFFE11D48), 'Ruby Crimson', 'ரூபி சிவப்பு'),
+  slateCharcoal(Color(0xFF334155), 'Slate Charcoal', 'ஸ்லேட் சாம்பல்');
 
   final Color color;
   final String label;
-  const AppThemeColor(this.color, this.label);
+  final String tamilLabel;
+  const AppThemeColor(this.color, this.label, this.tamilLabel);
+
+  String getLocalizedLabel(AppLanguage language) {
+    return language == AppLanguage.tamil ? tamilLabel : label;
+  }
 }
 
 class ThemeSettings {
