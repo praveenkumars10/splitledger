@@ -15,6 +15,7 @@ import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
 import '../household/household_repository.dart';
 import '../wallet/wallet_repository.dart';
+import '../budget/widgets/category_budget_dialog.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
   final String uid;
@@ -458,6 +459,30 @@ class SettingsPage extends ConsumerWidget {
                 _showWalletDialog(context, walletAmount, currentUser.uid);
               }
             },
+          ),
+          const Divider(height: 32),
+
+          // Category Budgets & Spending Limits
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.deepOrange.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.tune_rounded, color: Colors.deepOrange),
+            ),
+            title: Text(
+              AppStrings.tr(language, 'category_budgets'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(AppStrings.tr(language, 'category_budgets_desc')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => CategoryBudgetDialog.show(
+              context,
+              currentPeriodTransactions: transactions,
+            ),
           ),
           const Divider(height: 32),
 

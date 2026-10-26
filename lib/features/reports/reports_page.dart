@@ -21,6 +21,7 @@ import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
 import 'widgets/category_breakdown_card.dart';
 import 'widgets/daily_budget_card.dart';
+import '../budget/widgets/budget_alert_card.dart';
 
 class ReportsPage extends ConsumerStatefulWidget {
   const ReportsPage({super.key});
@@ -329,6 +330,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     },
                   ),
                 const SizedBox(height: 20),
+
+                // Budget Alert Card (if any category is >=80% or exceeded)
+                BudgetAlertCard(transactions: periodTransactions),
 
                 // Category Breakdown Card
                 CategoryBreakdownCard(transactions: periodTransactions),

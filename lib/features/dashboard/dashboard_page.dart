@@ -17,6 +17,7 @@ import '../transactions/quick_add_bottom_sheet.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../core/preferences/app_preferences.dart';
+import '../budget/widgets/budget_alert_card.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -676,6 +677,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ],
                   ),
                 ),
+              // Category Budget Alert Banner (shows if any category is >=80% or exceeded)
+              BudgetAlertCard(transactions: filtered),
               // Header Row
               Container(
                 color: Theme.of(context).colorScheme.primaryContainer,
