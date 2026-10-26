@@ -44,3 +44,24 @@ kotlin {
 flutter {
     source = "../.."
 }
+
+tasks.matching { it.name == "assembleRelease" }.configureEach {
+    doLast {
+        val rootDir = project.rootDir.parentFile
+        val flutterApkDir = File(rootDir, "build/app/outputs/flutter-apk")
+        val releaseApk = File(flutterApkDir, "app-release.apk")
+        if (releaseApk.exists()) {
+            val vName = flutter.versionName ?: "1.0.0"
+            val vCode = flutter.versionCode ?: 1
+            val versionedName = "SplitLedger-v${vName}-build${vCode}.apk"
+            val targetApk = File(flutterApkDir, versionedName)
+            releaseApk.copyTo(targetApk, overwrite = true)
+            
+            val releasesDir = File(rootDir, "releases")
+            if (!releasesDir.exists()) releasesDir.mkdirs()
+            releaseApk.copyTo(File(releasesDir, versionedName), overwrite = true)
+            println("✓ Auto-versioned APK copied to releases/$versionedName")
+        }
+    }
+}
+

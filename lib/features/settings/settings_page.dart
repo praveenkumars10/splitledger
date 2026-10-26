@@ -18,6 +18,7 @@ import '../wallet/wallet_repository.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
+import '../../core/constants/app_version.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
   final String uid;
@@ -768,7 +769,7 @@ class SettingsPage extends ConsumerWidget {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'SplitLedger v1.0.0 • Legend Edition 🚀',
+              'SplitLedger ${AppVersion.displayVersion} • Legend Edition 🚀',
               style: TextStyle(fontSize: 12, color: onSurfaceVariant),
             ),
           ),
