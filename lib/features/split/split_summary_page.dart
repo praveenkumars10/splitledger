@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
+import '../../core/preferences/app_preferences.dart';
 import '../../core/services/upi_whatsapp_service.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
@@ -20,24 +21,47 @@ class SplitSummaryPage extends ConsumerStatefulWidget {
 }
 
 class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
-  DateTime _selectedMonth = DateTime.now();
+  DateTime _selectedCycleDate = DateTime.now();
   bool _allTime = false;
+  DateTime? _customRangeStart;
+  DateTime? _customRangeEnd;
 
-  final _monthFormat = DateFormat('MMM yyyy');
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
 
-  Future<void> _selectMonth() async {
+  Future<void> _selectCycleMonth() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedMonth,
+      initialDate: _selectedCycleDate,
       firstDate: DateTime(now.year - 5),
       lastDate: DateTime(now.year + 1),
       initialDatePickerMode: DatePickerMode.year,
     );
     if (picked != null) {
       setState(() {
-        _selectedMonth = DateTime(picked.year, picked.month);
+        _selectedCycleDate = DateTime(picked.year, picked.month, _selectedCycleDate.day);
+        _allTime = false;
+        _customRangeStart = null;
+        _customRangeEnd = null;
+      });
+    }
+  }
+
+  Future<void> _selectCustomDateRange() async {
+    final now = DateTime.now();
+    final picked = await showDateRangePicker(
+      context: context,
+      firstDate: DateTime(now.year - 5),
+      lastDate: DateTime(now.year + 1),
+      initialDateRange: _customRangeStart != null && _customRangeEnd != null
+          ? DateTimeRange(start: _customRangeStart!, end: _customRangeEnd!)
+          : DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now),
+      helpText: 'Select Custom Split Date Range',
+    );
+    if (picked != null) {
+      setState(() {
+        _customRangeStart = picked.start;
+        _customRangeEnd = picked.end;
         _allTime = false;
       });
     }
@@ -80,8 +104,14 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
+    final preferences = ref.watch(appPreferencesProvider);
     final language = ref.watch(languageControllerProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+    final activeCycle = getCycleRangeForDate(_selectedCycleDate, cycleStartDay);
+    final isCustomActive = !_allTime && _customRangeStart != null && _customRangeEnd != null;
 
     return Scaffold(
       appBar: AppBar(
@@ -95,9 +125,18 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
         data: (transactions) {
           if (currentUser == null) return const Center(child: Text('Not signed in'));
 
-          final periodTransactions = _allTime
-              ? transactions
-              : transactions.where((tx) => isInMonth(tx.date, _selectedMonth)).toList();
+          final List<TransactionModel> periodTransactions;
+          if (_allTime) {
+            periodTransactions = transactions;
+          } else if (isCustomActive) {
+            periodTransactions = transactions
+                .where((tx) => isInDateRange(tx.date, _customRangeStart!, _customRangeEnd!))
+                .toList();
+          } else {
+            periodTransactions = transactions
+                .where((tx) => activeCycle.contains(tx.date))
+                .toList();
+          }
 
           final groupMembers = household?.members.map((m) => (uid: m.uid, name: m.name)).toList() ?? [];
           final split = calculateGroupSplit(
@@ -107,47 +146,113 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
 
           final myName = currentUser.displayName ?? AppStrings.tr(language, 'you');
 
+          String activePeriodTitle;
+          if (_allTime) {
+            activePeriodTitle = AppStrings.tr(language, 'all_time');
+          } else if (isCustomActive) {
+            final sStr = DateFormat('d MMM').format(_customRangeStart!);
+            final eStr = DateFormat('d MMM yyyy').format(_customRangeEnd!);
+            activePeriodTitle = '$sStr – $eStr';
+          } else {
+            activePeriodTitle = activeCycle.label;
+          }
+
           return SingleChildScrollView(
             padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 90.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Period selector
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ChoiceChip(
-                      label: Text(AppStrings.tr(language, 'all_time')),
-                      selected: _allTime,
-                      onSelected: (selected) => setState(() => _allTime = selected),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : _monthFormat.format(_selectedMonth)),
-                      selected: !_allTime,
-                      onSelected: (selected) {
-                        if (selected) {
-                          _selectMonth();
-                        }
-                      },
-                    ),
-                    if (!_allTime) ...[
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
-                        }),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ChoiceChip(
+                        label: Text(AppStrings.tr(language, 'all_time')),
+                        selected: _allTime,
+                        onSelected: (selected) {
+                          setState(() {
+                            _allTime = selected;
+                            if (selected) {
+                              _customRangeStart = null;
+                              _customRangeEnd = null;
+                            }
+                          });
+                        },
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
-                        }),
+                      const SizedBox(width: 8),
+                      // Household cycle chip
+                      ChoiceChip(
+                        avatar: cycleStartDay > 1 ? const Icon(Icons.calendar_month, size: 16) : null,
+                        label: Text(activeCycle.label),
+                        selected: !_allTime && !isCustomActive,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _allTime = false;
+                              _customRangeStart = null;
+                              _customRangeEnd = null;
+                            });
+                          } else {
+                            _selectCycleMonth();
+                          }
+                        },
                       ),
+                      if (!_allTime && !isCustomActive) ...[
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: 'Previous cycle',
+                          onPressed: () => setState(() {
+                            _selectedCycleDate = getCycleRangeWithOffset(_selectedCycleDate, cycleStartDay, -1).start;
+                          }),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          tooltip: 'Next cycle',
+                          onPressed: () => setState(() {
+                            _selectedCycleDate = getCycleRangeWithOffset(_selectedCycleDate, cycleStartDay, 1).start;
+                          }),
+                        ),
+                      ],
+                      const SizedBox(width: 4),
+                      // Custom date range chip / button
+                      if (isCustomActive)
+                        InputChip(
+                          avatar: const Icon(Icons.date_range, size: 16),
+                          label: Text(
+                            '${DateFormat('d MMM').format(_customRangeStart!)} – ${DateFormat('d MMM').format(_customRangeEnd!)}',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          selected: true,
+                          onDeleted: () {
+                            setState(() {
+                              _customRangeStart = null;
+                              _customRangeEnd = null;
+                            });
+                          },
+                          onPressed: _selectCustomDateRange,
+                        )
+                      else
+                        ActionChip(
+                          avatar: const Icon(Icons.date_range, size: 16),
+                          label: Text(AppStrings.tr(language, 'custom_range')),
+                          onPressed: _selectCustomDateRange,
+                        ),
                     ],
-                  ],
+                  ),
                 ),
-                const SizedBox(height: 16),
+                if (cycleStartDay > 1 && !_allTime && !isCustomActive)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
+                    child: Center(
+                      child: Text(
+                        '★ Household Salary Cycle: Day $cycleStartDay of month',
+                        style: TextStyle(fontSize: 11, color: colorScheme.primary, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 12),
 
                 // Total Expense Card
                 Card(
@@ -158,10 +263,9 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                     child: Column(
                       children: [
                         Text(
-                          _allTime
-                              ? AppStrings.tr(language, 'total_group_expense')
-                              : '${AppStrings.tr(language, 'total_group_expense')} (${_monthFormat.format(_selectedMonth)})',
+                          '${AppStrings.tr(language, 'total_group_expense')} ($activePeriodTitle)',
                           style: TextStyle(fontSize: 14, color: onSurfaceVariant),
+                          textAlign: TextAlign.center,
                         ),
                         const SizedBox(height: 6),
                         Text(

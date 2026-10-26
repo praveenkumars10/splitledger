@@ -118,6 +118,12 @@ class HouseholdRepository {
     });
   }
 
+  Future<void> updateHouseholdCycleStartDay(String householdId, int cycleStartDay) async {
+    await _firestore.collection('households').doc(householdId).update({
+      'cycleStartDay': cycleStartDay.clamp(1, 31),
+    });
+  }
+
   Future<void> leaveHousehold(String householdId, String uid) async {
     final doc = await _firestore.collection('households').doc(householdId).get();
     if (!doc.exists) return;

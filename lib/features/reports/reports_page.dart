@@ -12,6 +12,7 @@ import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
+import '../../core/preferences/app_preferences.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
@@ -52,7 +53,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
-  Future<void> _exportPdf(GroupSplitResult split, List<TransactionModel> periodTransactions, String householdName) async {
+  Future<void> _exportPdf(
+    GroupSplitResult split,
+    List<TransactionModel> periodTransactions,
+    String householdName, {
+    String? periodLabel,
+  }) async {
     try {
       final pdf = pw.Document();
       pdf.addPage(
@@ -66,7 +72,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text('SplitLedger Expense Statement', style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-                  pw.Text(_allTime ? 'All Time' : _monthFormat.format(_selectedMonth), style: const pw.TextStyle(fontSize: 14)),
+                  pw.Text(periodLabel ?? (_allTime ? 'All Time' : _monthFormat.format(_selectedMonth)), style: const pw.TextStyle(fontSize: 14)),
                 ],
               ),
             ),
@@ -183,7 +189,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final language = ref.watch(languageControllerProvider);
+    final preferences = ref.watch(appPreferencesProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+    final activeCycle = getCycleRangeForDate(_selectedMonth, cycleStartDay);
 
     return Scaffold(
       appBar: AppBar(
@@ -198,7 +209,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
           final periodTransactions = _allTime
               ? transactions
-              : transactions.where((tx) => isInMonth(tx.date, _selectedMonth)).toList();
+              : transactions.where((tx) => activeCycle.contains(tx.date)).toList();
 
           final groupMembers = household?.members.map((m) => (uid: m.uid, name: m.name)).toList() ?? [];
           final split = calculateGroupSplit(
@@ -216,44 +227,61 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Period selector
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    ChoiceChip(
-                      label: Text(AppStrings.tr(language, 'all_time')),
-                      selected: _allTime,
-                      onSelected: (selected) => setState(() => _allTime = selected),
-                    ),
-                    const SizedBox(width: 8),
-                    ChoiceChip(
-                      label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : _monthFormat.format(_selectedMonth)),
-                      selected: !_allTime,
-                      onSelected: (selected) {
-                        if (selected) _selectMonth();
-                      },
-                    ),
-                    if (!_allTime) ...[
-                      IconButton(
-                        icon: const Icon(Icons.chevron_left),
-                        onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
-                        }),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      ChoiceChip(
+                        label: Text(AppStrings.tr(language, 'all_time')),
+                        selected: _allTime,
+                        onSelected: (selected) => setState(() => _allTime = selected),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.chevron_right),
-                        onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
-                        }),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        avatar: cycleStartDay > 1 ? const Icon(Icons.calendar_month, size: 16) : null,
+                        label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : activeCycle.label),
+                        selected: !_allTime,
+                        onSelected: (selected) {
+                          if (selected) _selectMonth();
+                        },
                       ),
+                      if (!_allTime) ...[
+                        IconButton(
+                          icon: const Icon(Icons.chevron_left),
+                          tooltip: 'Previous cycle',
+                          onPressed: () => setState(() {
+                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleStartDay, -1).start;
+                          }),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.chevron_right),
+                          tooltip: 'Next cycle',
+                          onPressed: () => setState(() {
+                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleStartDay, 1).start;
+                          }),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
+                if (cycleStartDay > 1 && !_allTime)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4.0, bottom: 2.0),
+                    child: Center(
+                      child: Text(
+                        '★ Household Salary Cycle: Day $cycleStartDay of month',
+                        style: TextStyle(fontSize: 11, color: colorScheme.primary, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ),
                 const SizedBox(height: 16),
 
                 // Daily Budget Card
                 DailyBudgetCard(
                   walletAmount: walletAmount,
                   userTotalSpend: userSpend,
+                  cycleStartDay: cycleStartDay,
                 ),
                 const SizedBox(height: 16),
 
@@ -396,7 +424,12 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                   children: [
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => _exportPdf(split, periodTransactions, household?.name ?? 'Household'),
+                        onPressed: () => _exportPdf(
+                          split,
+                          periodTransactions,
+                          household?.name ?? 'Household',
+                          periodLabel: _allTime ? 'All Time' : activeCycle.label,
+                        ),
                         icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
                         label: Text(AppStrings.tr(language, 'export_pdf'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(

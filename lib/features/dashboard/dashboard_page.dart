@@ -276,6 +276,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             onSelected: (value) {
               switch (value) {
+                case 'Cycle':
+                  setState(() {
+                    _selectedTimeFilter = 'Monthly';
+                    _rangeStart = null;
+                    _rangeEnd = null;
+                    _selectedMonth = DateTime.now();
+                  });
+                  break;
                 case 'Search':
                   _showKeywordSearch();
                   break;
@@ -292,7 +300,31 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             },
             itemBuilder: (context) {
               final colorScheme = Theme.of(context).colorScheme;
+              final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+              final activeCycle = getCycleRangeForDate(_selectedMonth, cycleStartDay);
               return [
+                PopupMenuItem(
+                  value: 'Cycle',
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.teal.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.calendar_month, size: 18, color: Colors.teal),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        cycleStartDay > 1
+                            ? '${AppStrings.tr(language, 'salary_cycle')} (${activeCycle.label})'
+                            : AppStrings.tr(language, 'monthly'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
                 PopupMenuItem(
                   value: 'Search',
                   child: Row(
@@ -381,49 +413,72 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_isMonthlyFilter ? 145 : 95),
+          preferredSize: Size.fromHeight(_isMonthlyFilter ? (household?.cycleStartDay != null && household!.cycleStartDay > 1 ? 152 : 145) : 95),
           child: Column(
             children: [
-              // Month selector row
-              if (_isMonthlyFilter)
+              // Month / Cycle selector row
+              if (_isMonthlyFilter) ...[
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       IconButton(
                         icon: const Icon(Icons.chevron_left, color: Colors.white),
+                        tooltip: 'Previous cycle',
                         onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                          final cycleDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+                          if (cycleDay > 1) {
+                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleDay, -1).start;
+                          } else {
+                            _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
+                          }
                         }),
                       ),
-                      TextButton(
+                      TextButton.icon(
+                        icon: (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
+                            ? const Icon(Icons.calendar_month, color: Colors.white, size: 16)
+                            : const SizedBox.shrink(),
                         onPressed: _selectMonth,
-                        child: Text(
-                          _monthFormat.format(_selectedMonth),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16),
+                        label: Text(
+                          (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
+                              ? getCycleRangeForDate(_selectedMonth, household?.cycleStartDay ?? preferences.cycleStartDay).label
+                              : _monthFormat.format(_selectedMonth),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.chevron_right, color: Colors.white),
+                        tooltip: 'Next cycle',
                         onPressed: () => setState(() {
-                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+                          final cycleDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+                          if (cycleDay > 1) {
+                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleDay, 1).start;
+                          } else {
+                            _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
+                          }
                         }),
                       ),
                     ],
                   ),
                 ),
+              ],
 
               // Time filter chips
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                 child: Row(
                   children: [
                     ('All', AppStrings.tr(language, 'all_time')),
                     ('Daily', AppStrings.tr(language, 'daily')),
                     ('Weekly', AppStrings.tr(language, 'weekly')),
-                    ('Monthly', AppStrings.tr(language, 'monthly')),
+                    (
+                      'Monthly',
+                      (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
+                          ? AppStrings.tr(language, 'cycle_tab')
+                          : AppStrings.tr(language, 'monthly')
+                    ),
                     ('Yearly', AppStrings.tr(language, 'yearly')),
                   ].map((filterItem) {
                     final filterKey = filterItem.$1;
@@ -523,6 +578,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         data: (transactions) {
           if (currentUser == null) return const Center(child: Text('Not signed in'));
 
+          final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+
           final filtered = filterTransactions(
             transactions,
             timeFilter: _selectedTimeFilter,
@@ -534,6 +591,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             keyword: _keyword,
             minAmount: _minAmount,
             maxAmount: _maxAmount,
+            cycleStartDay: cycleStartDay,
           );
 
           final settlementTransactions = filterTransactions(
@@ -544,6 +602,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             selectedMonth: _selectedMonth,
             rangeStart: _rangeStart,
             rangeEnd: _rangeEnd,
+            cycleStartDay: cycleStartDay,
           );
           final periodSplit = calculateGroupSplit(
             transactions: settlementTransactions,

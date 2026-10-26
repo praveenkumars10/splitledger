@@ -1,4 +1,107 @@
+import 'package:intl/intl.dart';
 import '../models/transaction_model.dart';
+
+/// Represents a billing or salary cycle date range for expense tracking.
+class DateCycleRange {
+  final DateTime start;
+  final DateTime end;
+  final String label;
+  final int cycleStartDay;
+
+  const DateCycleRange({
+    required this.start,
+    required this.end,
+    required this.label,
+    required this.cycleStartDay,
+  });
+
+  /// Returns true if [date] falls within this cycle range (inclusive).
+  bool contains(DateTime date) {
+    return isInDateRange(date, start, end);
+  }
+
+  /// Calculates days remaining in this cycle from [fromDate] (defaults to today).
+  int daysRemaining([DateTime? fromDate]) {
+    final now = fromDate ?? DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final e = DateTime(end.year, end.month, end.day);
+    if (today.isAfter(e)) return 0;
+    return e.difference(today).inDays + 1;
+  }
+}
+
+/// Returns the number of days in the given month and year.
+int getDaysInMonth(int year, int month) {
+  return DateTime(year, month + 1, 0).day;
+}
+
+/// Clamps [day] to the valid days of [month]/[year].
+DateTime clampDate(int year, int month, int day, {bool endOfDay = false}) {
+  final maxDays = getDaysInMonth(year, month);
+  final d = day.clamp(1, maxDays);
+  if (endOfDay) {
+    return DateTime(year, month, d, 23, 59, 59, 999);
+  }
+  return DateTime(year, month, d);
+}
+
+/// Computes the [DateCycleRange] containing [referenceDate] for the specified [cycleStartDay] (1..31).
+DateCycleRange getCycleRangeForDate(DateTime referenceDate, int cycleStartDay) {
+  final day = cycleStartDay.clamp(1, 31);
+  if (day <= 1) {
+    final start = DateTime(referenceDate.year, referenceDate.month, 1);
+    final end = clampDate(referenceDate.year, referenceDate.month, 31, endOfDay: true);
+    final label = DateFormat('MMM yyyy').format(start);
+    return DateCycleRange(start: start, end: end, label: label, cycleStartDay: 1);
+  }
+
+  int startYear = referenceDate.year;
+  int startMonth = referenceDate.month;
+  if (referenceDate.day < day) {
+    if (startMonth == 1) {
+      startYear--;
+      startMonth = 12;
+    } else {
+      startMonth--;
+    }
+  }
+
+  final start = clampDate(startYear, startMonth, day);
+  final endYear = startMonth == 12 ? startYear + 1 : startYear;
+  final endMonth = startMonth == 12 ? 1 : startMonth + 1;
+  final end = clampDate(endYear, endMonth, day - 1, endOfDay: true);
+
+  final startLabel = DateFormat('d MMM').format(start);
+  final endLabel = DateFormat('d MMM yyyy').format(end);
+  final label = '$startLabel – $endLabel';
+
+  return DateCycleRange(
+    start: start,
+    end: end,
+    label: label,
+    cycleStartDay: day,
+  );
+}
+
+/// Navigates cycles by [monthOffset] (e.g. -1 for previous cycle, +1 for next cycle).
+DateCycleRange getCycleRangeWithOffset(DateTime baseDate, int cycleStartDay, int monthOffset) {
+  final current = getCycleRangeForDate(baseDate, cycleStartDay);
+  if (monthOffset == 0) return current;
+
+  int m = current.start.month + monthOffset;
+  int y = current.start.year;
+  while (m > 12) {
+    m -= 12;
+    y++;
+  }
+  while (m < 1) {
+    m += 12;
+    y--;
+  }
+
+  final target = clampDate(y, m, cycleStartDay.clamp(1, 31));
+  return getCycleRangeForDate(target, cycleStartDay);
+}
 
 /// Returns true if [date] falls inside [month] (year + month only).
 bool isInMonth(DateTime date, DateTime month) {
@@ -38,9 +141,10 @@ bool isThisYear(DateTime date) {
 
 /// Filters a list of transactions by the named time filter and optional user filter.
 ///
-/// [timeFilter] must be one of: 'All', 'Daily', 'Weekly', 'Monthly', 'Yearly'.
+/// [timeFilter] must be one of: 'All', 'Daily', 'Weekly', 'Monthly', 'Cycle', 'Yearly'.
 /// [userFilter] must be 'all', 'me', 'group', or a specific user's UID.
 /// [currentUserId] is required when [userFilter] is not 'All Users'.
+/// [cycleStartDay] defaults to 1 (calendar month) or customized day (e.g. 7).
 List<TransactionModel> filterTransactions(
   List<TransactionModel> transactions, {
   required String timeFilter,
@@ -52,6 +156,7 @@ List<TransactionModel> filterTransactions(
   String? keyword,
   double? minAmount,
   double? maxAmount,
+  int cycleStartDay = 1,
 }) {
   final now = DateTime.now();
   final today = DateTime(now.year, now.month, now.day);
@@ -77,10 +182,17 @@ List<TransactionModel> filterTransactions(
       case 'Weekly':
         if (!isThisWeek(tx.date)) return false;
       case 'Monthly':
-        if (selectedMonth == null) {
-          if (!isInMonth(tx.date, now)) return false;
+      case 'Cycle':
+        if (cycleStartDay > 1) {
+          final target = selectedMonth ?? now;
+          final cycle = getCycleRangeForDate(target, cycleStartDay);
+          if (!cycle.contains(tx.date)) return false;
         } else {
-          if (!isInMonth(tx.date, selectedMonth)) return false;
+          if (selectedMonth == null) {
+            if (!isInMonth(tx.date, now)) return false;
+          } else {
+            if (!isInMonth(tx.date, selectedMonth)) return false;
+          }
         }
       case 'Yearly':
         if (!isThisYear(tx.date)) return false;

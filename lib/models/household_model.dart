@@ -30,6 +30,7 @@ class Household {
   final List<HouseholdMember> members;
   final DateTime createdAt;
   final String inviteCode;
+  final int cycleStartDay;
 
   Household({
     required this.id,
@@ -37,6 +38,7 @@ class Household {
     required this.members,
     required this.createdAt,
     required this.inviteCode,
+    this.cycleStartDay = 1,
   });
 
   factory Household.fromMap(Map<String, dynamic> map, String id) {
@@ -48,6 +50,7 @@ class Household {
           .toList(),
       createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : DateTime.now(),
       inviteCode: map['inviteCode'] ?? '',
+      cycleStartDay: (map['cycleStartDay'] as num?)?.toInt() ?? 1,
     );
   }
 
@@ -58,6 +61,25 @@ class Household {
       'memberUids': members.map((e) => e.uid).toList(),
       'createdAt': Timestamp.fromDate(createdAt),
       'inviteCode': inviteCode,
+      'cycleStartDay': cycleStartDay,
     };
+  }
+
+  Household copyWith({
+    String? id,
+    String? name,
+    List<HouseholdMember>? members,
+    DateTime? createdAt,
+    String? inviteCode,
+    int? cycleStartDay,
+  }) {
+    return Household(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      members: members ?? this.members,
+      createdAt: createdAt ?? this.createdAt,
+      inviteCode: inviteCode ?? this.inviteCode,
+      cycleStartDay: cycleStartDay ?? this.cycleStartDay,
+    );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../core/date_filters.dart';
 import '../../../core/localization/app_strings.dart';
 import '../../../core/localization/language_controller.dart';
 
@@ -9,12 +10,14 @@ class DailyBudgetCard extends ConsumerWidget {
   final double walletAmount;
   final double userTotalSpend;
   final VoidCallback? onSetWalletTap;
+  final int cycleStartDay;
 
   const DailyBudgetCard({
     super.key,
     required this.walletAmount,
     required this.userTotalSpend,
     this.onSetWalletTap,
+    this.cycleStartDay = 1,
   });
 
   @override
@@ -22,8 +25,18 @@ class DailyBudgetCard extends ConsumerWidget {
     final language = ref.watch(languageControllerProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final now = DateTime.now();
-    final lastDay = DateTime(now.year, now.month + 1, 0).day;
-    final daysLeft = (lastDay - now.day + 1).clamp(1, 31);
+    final int daysLeft;
+    final String cycleLabel;
+
+    if (cycleStartDay > 1) {
+      final cycle = getCycleRangeForDate(now, cycleStartDay);
+      daysLeft = cycle.daysRemaining().clamp(1, 31);
+      cycleLabel = AppStrings.tr(language, 'cycle_tab');
+    } else {
+      final lastDay = DateTime(now.year, now.month + 1, 0).day;
+      daysLeft = (lastDay - now.day + 1).clamp(1, 31);
+      cycleLabel = DateFormat('MMMM').format(now);
+    }
 
     final remaining = (walletAmount > 0) ? (walletAmount - userTotalSpend) : 0.0;
     final dailyBudget = (walletAmount > 0 && remaining > 0) ? (remaining / daysLeft) : 0.0;
@@ -96,7 +109,7 @@ class DailyBudgetCard extends ConsumerWidget {
                         style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                       ),
                       Text(
-                        '$daysLeft ${AppStrings.tr(language, 'days_left_in')} ${DateFormat('MMMM').format(now)}',
+                        '$daysLeft ${AppStrings.tr(language, 'days_left_in')} $cycleLabel',
                         style: TextStyle(fontSize: 12, color: onSurfaceVariant),
                       ),
                     ],
