@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/categories.dart';
@@ -34,6 +35,7 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
   TransactionType _type = TransactionType.paid;
   String? _selectedPayerUid;
   bool _isLoading = false;
+  String? _receiptPath;
 
   final List<int> _quickAmounts = [10, 20, 30, 50, 70, 100, 200, 500];
 
@@ -65,6 +67,21 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
     setState(() {
       _amountController.text = newVal.toStringAsFixed(newVal.truncateToDouble() == newVal ? 0 : 2);
     });
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (picked != null) {
+        setState(() => _receiptPath = picked.path);
+      }
+    } catch (_) {}
   }
 
   Future<void> _submit() async {
@@ -107,6 +124,7 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
         paidByUid: payer.uid,
         paidByName: payer.name,
         note: note,
+        receiptUrl: _receiptPath,
         date: DateTime.now(),
         type: _type,
         createdAt: DateTime.now(),
@@ -341,6 +359,67 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
                 ),
                 onChanged: (_) => setState(() {}),
               ),
+              const SizedBox(height: 10),
+
+              // Quick Receipt Attachment Button or Tag
+              if (_receiptPath == null)
+                Row(
+                  children: [
+                    OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.add_a_photo_outlined, size: 16),
+                      label: Text(
+                        AppStrings.tr(language, 'attach_receipt'),
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (ctx) => SafeArea(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                ListTile(
+                                  leading: const Icon(Icons.camera_alt, color: Color(0xFF0F766E)),
+                                  title: Text(AppStrings.tr(language, 'take_photo')),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _pickImage(ImageSource.camera);
+                                  },
+                                ),
+                                ListTile(
+                                  leading: const Icon(Icons.photo_library),
+                                  title: Text(AppStrings.tr(language, 'choose_gallery')),
+                                  onTap: () {
+                                    Navigator.pop(ctx);
+                                    _pickImage(ImageSource.gallery);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    Chip(
+                      avatar: const Icon(Icons.check_circle, size: 16, color: Color(0xFF0F766E)),
+                      label: Text(
+                        AppStrings.tr(language, 'receipt_attached'),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      deleteIcon: const Icon(Icons.close, size: 16),
+                      onDeleted: () => setState(() => _receiptPath = null),
+                    ),
+                  ],
+                ),
               const SizedBox(height: 16),
 
               // Paid By dropdown if multiple members

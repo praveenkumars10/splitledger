@@ -21,6 +21,7 @@ import '../budget/widgets/budget_alert_card.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
+import '../../core/widgets/receipt_viewer_dialog.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -849,12 +850,49 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
                                                 const SizedBox(height: 2),
-                                                Text(
-                                                  _dateFormat.format(tx.date),
-                                                  style: TextStyle(
-                                                    fontSize: 11,
-                                                    color: onSurfaceVariant,
-                                                  ),
+                                                Row(
+                                                  children: [
+                                                    Text(
+                                                      _dateFormat.format(tx.date),
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: onSurfaceVariant,
+                                                      ),
+                                                    ),
+                                                    if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
+                                                      const SizedBox(width: 6),
+                                                      GestureDetector(
+                                                        onTap: () => ReceiptViewerDialog.show(
+                                                          context,
+                                                          receiptPath: tx.receiptUrl!,
+                                                          title: titleText,
+                                                          amountText: _currencyFormat.format(tx.amount),
+                                                        ),
+                                                        child: Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                          decoration: BoxDecoration(
+                                                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                                            borderRadius: BorderRadius.circular(4),
+                                                          ),
+                                                          child: Row(
+                                                            mainAxisSize: MainAxisSize.min,
+                                                            children: [
+                                                              Icon(Icons.receipt_long, size: 10, color: Theme.of(context).colorScheme.primary),
+                                                              const SizedBox(width: 2),
+                                                              Text(
+                                                                'Receipt',
+                                                                style: TextStyle(
+                                                                  fontSize: 9,
+                                                                  fontWeight: FontWeight.bold,
+                                                                  color: Theme.of(context).colorScheme.primary,
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ],
                                                 ),
                                               ],
                                             ),

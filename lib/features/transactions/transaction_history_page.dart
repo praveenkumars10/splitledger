@@ -7,6 +7,7 @@ import '../../core/localization/language_controller.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
 import '../../core/services/csv_export_service.dart';
+import '../../core/widgets/receipt_viewer_dialog.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import 'add_transaction_page.dart';
@@ -37,6 +38,8 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
     final language = ref.read(languageControllerProvider);
     final isPaid = tx.type == TransactionType.paid;
     final amountColor = isPaid ? Colors.red.shade700 : Colors.green.shade700;
+    final sign = isPaid ? '-' : '+';
+    final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     showModalBottomSheet(
       context: context,
@@ -101,6 +104,56 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                 _buildDetailRow(AppStrings.tr(language, 'due_date'), _dateFormat.format(tx.dueDate!)),
               if (tx.recurrence != RecurrenceInterval.none)
                 _buildDetailRow(AppStrings.tr(language, 'repeat'), tx.recurrence.name.toUpperCase()),
+              if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => ReceiptViewerDialog.show(
+                    context,
+                    receiptPath: tx.receiptUrl!,
+                    title: tx.note?.isNotEmpty == true ? tx.note! : tx.category,
+                    amountText: '$sign${_currencyFormat.format(tx.amount)}',
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.receipt_long, color: Color(0xFF0F766E)),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppStrings.tr(language, 'view_receipt'),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                              ),
+                              Text(
+                                AppStrings.tr(language, 'receipt_attached'),
+                                style: TextStyle(fontSize: 12, color: onSurfaceVariant),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(Icons.fullscreen, size: 22),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 24),
               Row(
                 children: [
@@ -465,11 +518,35 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                             size: 20,
                           ),
                         ),
-                        title: Text(
-                          title,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
+                              const SizedBox(width: 4),
+                              Tooltip(
+                                message: AppStrings.tr(language, 'receipt_attached'),
+                                child: Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Icon(
+                                    Icons.receipt_long,
+                                    size: 14,
+                                    color: Theme.of(context).colorScheme.primary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                         subtitle: Text(
                           '${isMe ? AppStrings.tr(language, "you") : shortName(tx.paidByName)} • ${_dateFormat.format(tx.date)}',

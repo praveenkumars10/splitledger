@@ -1,10 +1,13 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/categories.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
+import '../../core/widgets/receipt_viewer_dialog.dart';
 import '../../models/transaction_model.dart';
 import '../../models/household_model.dart';
 import 'transaction_repository.dart';
@@ -35,6 +38,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   RecurrenceInterval _selectedRecurrence = RecurrenceInterval.none;
   DateTime? _recurrenceEndDate;
 
+  // Receipt state
+  String? _receiptPath;
+
   final _dateFormat = DateFormat('dd-MMM-yyyy');
   final _timeFormat = DateFormat('hh:mm a');
 
@@ -60,6 +66,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
       _dueDate = tx.dueDate;
       _selectedRecurrence = tx.recurrence;
       _recurrenceEndDate = tx.recurrenceEndDate;
+      _receiptPath = tx.receiptUrl;
     } else {
       _selectedDate = DateTime.now();
     }
@@ -157,6 +164,96 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     }
   }
 
+  Future<void> _showReceiptPickerModal() async {
+    final language = ref.read(languageControllerProvider);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (bottomSheetCtx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade400,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Text(
+                AppStrings.tr(language, 'attach_receipt'),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Color(0xFF0F766E),
+                  foregroundColor: Colors.white,
+                  child: Icon(Icons.camera_alt),
+                ),
+                title: Text(AppStrings.tr(language, 'take_photo')),
+                onTap: () {
+                  Navigator.pop(bottomSheetCtx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                  child: const Icon(Icons.photo_library),
+                ),
+                title: Text(AppStrings.tr(language, 'choose_gallery')),
+                onTap: () {
+                  Navigator.pop(bottomSheetCtx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        imageQuality: 85,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (picked != null) {
+        setState(() => _receiptPath = picked.path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to pick image: $e')),
+        );
+      }
+    }
+  }
+
+  Widget _buildReceiptThumbnail(String path) {
+    if (path.startsWith('http')) {
+      return Image.network(path, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image));
+    }
+    final file = File(path);
+    if (file.existsSync()) {
+      return Image.file(file, fit: BoxFit.cover, errorBuilder: (context, error, stackTrace) => const Icon(Icons.broken_image));
+    }
+    return const Icon(Icons.receipt_long);
+  }
+
   void _save() async {
     final cleanText = _amountController.text.trim().replaceAll(',', '');
     final amount = double.tryParse(cleanText) ?? 0;
@@ -183,6 +280,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         paidByUid: paidByUser.uid,
         paidByName: paidByUser.name,
         note: _noteController.text.trim().isEmpty ? _selectedCategory : _noteController.text.trim(),
+        receiptUrl: _receiptPath,
         date: _selectedDate,
         dueDate: _dueDate,
         type: widget.type,
@@ -506,6 +604,135 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
                             Icon(Icons.calendar_today, size: 20, color: Theme.of(context).colorScheme.primary),
                           ],
                         ),
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+
+                  // Bill / Receipt Attachment Section
+                  if (_receiptPath == null)
+                    InkWell(
+                      onTap: _showReceiptPickerModal,
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.15),
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.add_a_photo_outlined,
+                                color: Theme.of(context).colorScheme.primary,
+                                size: 20,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    AppStrings.tr(language, 'attach_receipt'),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.primary,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Camera / Gallery',
+                                    style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4)),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+                      ),
+                      child: Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () => ReceiptViewerDialog.show(
+                              context,
+                              receiptPath: _receiptPath!,
+                              title: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : 'Bill Receipt',
+                              amountText: '₹${_amountController.text.trim()}',
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 52,
+                                height: 52,
+                                child: _buildReceiptThumbnail(_receiptPath!),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.check_circle, size: 16, color: Color(0xFF0F766E)),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      AppStrings.tr(language, 'receipt_attached'),
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                GestureDetector(
+                                  onTap: () => ReceiptViewerDialog.show(
+                                    context,
+                                    receiptPath: _receiptPath!,
+                                    title: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : 'Bill Receipt',
+                                    amountText: '₹${_amountController.text.trim()}',
+                                  ),
+                                  child: Text(
+                                    AppStrings.tr(language, 'view_receipt'),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(context).colorScheme.primary,
+                                      decoration: TextDecoration.underline,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            tooltip: 'Change',
+                            onPressed: _showReceiptPickerModal,
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.red),
+                            tooltip: AppStrings.tr(language, 'remove_receipt'),
+                            onPressed: () => setState(() => _receiptPath = null),
+                          ),
+                        ],
                       ),
                     ),
                 ],
