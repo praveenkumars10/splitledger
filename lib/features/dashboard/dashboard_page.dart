@@ -20,6 +20,7 @@ import '../../core/preferences/app_preferences.dart';
 import '../budget/widgets/budget_alert_card.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
+import '../savings/savings_page.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -210,6 +211,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const RecurringPage()));
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.savings_outlined, color: Theme.of(context).colorScheme.primary),
+              title: Text(AppStrings.tr(language, 'savings_goals')),
+              subtitle: Text(AppStrings.tr(language, 'savings_desc'), style: TextStyle(fontSize: 11, color: onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SavingsPage()));
               },
             ),
             ListTile(

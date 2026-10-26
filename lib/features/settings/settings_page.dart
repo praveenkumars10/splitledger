@@ -17,6 +17,7 @@ import '../household/household_repository.dart';
 import '../wallet/wallet_repository.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
+import '../savings/savings_page.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
   final String uid;
@@ -507,6 +508,30 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const RecurringPage()),
+            ),
+          ),
+          const Divider(height: 32),
+
+          // Savings Goals & Piggy Bank
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.savings_outlined, color: Colors.green),
+            ),
+            title: Text(
+              AppStrings.tr(language, 'savings_goals'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(AppStrings.tr(language, 'savings_desc')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const SavingsPage()),
             ),
           ),
           const Divider(height: 32),
