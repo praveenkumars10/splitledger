@@ -16,6 +16,7 @@ import '../transactions/transaction_repository.dart';
 import '../household/household_repository.dart';
 import '../wallet/wallet_repository.dart';
 import '../budget/widgets/category_budget_dialog.dart';
+import '../recurring/recurring_page.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
   final String uid;
@@ -482,6 +483,30 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => CategoryBudgetDialog.show(
               context,
               currentPeriodTransactions: transactions,
+            ),
+          ),
+          const Divider(height: 32),
+
+          // Recurring Expenses & Subscriptions
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.teal.withValues(alpha: 0.15),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.autorenew, color: Colors.teal),
+            ),
+            title: Text(
+              AppStrings.tr(language, 'recurring_expenses'),
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            subtitle: Text(AppStrings.tr(language, 'recurring_desc')),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const RecurringPage()),
             ),
           ),
           const Divider(height: 32),

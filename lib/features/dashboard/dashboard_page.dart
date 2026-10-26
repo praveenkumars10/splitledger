@@ -18,6 +18,8 @@ import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../core/preferences/app_preferences.dart';
 import '../budget/widgets/budget_alert_card.dart';
+import '../budget/widgets/category_budget_dialog.dart';
+import '../recurring/recurring_page.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
   const DashboardPage({super.key});
@@ -190,6 +192,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 if (currentUser != null) {
                   _showWalletDialog(walletAmount, currentUser.uid);
                 }
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.tune_rounded, color: Theme.of(context).colorScheme.primary),
+              title: Text(AppStrings.tr(language, 'category_budgets')),
+              subtitle: Text(AppStrings.tr(language, 'category_budgets_desc'), style: TextStyle(fontSize: 11, color: onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              onTap: () {
+                Navigator.pop(context);
+                CategoryBudgetDialog.show(context);
+              },
+            ),
+            ListTile(
+              leading: Icon(Icons.autorenew, color: Theme.of(context).colorScheme.primary),
+              title: Text(AppStrings.tr(language, 'recurring_expenses')),
+              subtitle: Text(AppStrings.tr(language, 'recurring_desc'), style: TextStyle(fontSize: 11, color: onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const RecurringPage()));
               },
             ),
             ListTile(
