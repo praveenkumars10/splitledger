@@ -198,7 +198,20 @@ class SettingsPage extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 4),
+          Text(
+            AppStrings.tr(language, 'theme_preview_desc'),
+            style: TextStyle(fontSize: 13, color: onSurfaceVariant),
+          ),
           const SizedBox(height: 12),
+
+          // Live Interactive App Theme Preview Card
+          _LiveThemePreviewCard(
+            themeSettings: themeSettings,
+            language: language,
+          ),
+          const SizedBox(height: 18),
+
           // Theme Mode Selector
           SegmentedButton<ThemeMode>(
             segments: [
@@ -224,32 +237,37 @@ class SettingsPage extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 16),
-          // Accent Color Selector
-          Text(AppStrings.tr(language, 'theme_accent_color'), style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onSurfaceVariant)),
-          const SizedBox(height: 8),
+
+          // Accent Color Selector Header
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                AppStrings.tr(language, 'theme_accent_color'),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onSurfaceVariant),
+              ),
+              Text(
+                themeSettings.accentColor.getLocalizedLabel(language),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeSettings.accentColor.color),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Theme Palette Cards Carousel
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
               children: AppThemeColor.values.map((colorItem) {
                 final isSelected = themeSettings.accentColor == colorItem;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8.0),
-                  child: FilterChip(
-                    avatar: CircleAvatar(
-                      backgroundColor: colorItem.color,
-                      radius: 8,
-                    ),
-                    label: Text(
-                      colorItem.getLocalizedLabel(language),
-                      style: TextStyle(
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                    ),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      if (selected) {
-                        ref.read(themeControllerProvider.notifier).setAccentColor(colorItem);
-                      }
+                  padding: const EdgeInsets.only(right: 10.0, bottom: 4.0),
+                  child: _ThemeColorCard(
+                    colorItem: colorItem,
+                    isSelected: isSelected,
+                    language: language,
+                    onTap: () {
+                      ref.read(themeControllerProvider.notifier).setAccentColor(colorItem);
                     },
                   ),
                 );
@@ -1240,4 +1258,510 @@ class _EditCycleStartDayDialogState extends ConsumerState<_EditCycleStartDayDial
     );
   }
 }
+
+class _LiveThemePreviewCard extends StatelessWidget {
+  final ThemeSettings themeSettings;
+  final AppLanguage language;
+
+  const _LiveThemePreviewCard({
+    required this.themeSettings,
+    required this.language,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final previewBrightness = switch (themeSettings.themeMode) {
+      ThemeMode.light => Brightness.light,
+      ThemeMode.dark => Brightness.dark,
+      ThemeMode.system => MediaQuery.platformBrightnessOf(context),
+    };
+
+    final isDark = previewBrightness == Brightness.dark;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: themeSettings.accentColor.color,
+      brightness: previewBrightness,
+    );
+
+    return Container(
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: scheme.outlineVariant, width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: scheme.shadow.withValues(alpha: isDark ? 0.3 : 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Top Mini Status Bar (Phone Mockup)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            color: scheme.primary,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '9:41',
+                  style: TextStyle(
+                    color: scheme.onPrimary.withValues(alpha: 0.9),
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: scheme.onPrimary.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.wifi, size: 11, color: scheme.onPrimary.withValues(alpha: 0.9)),
+                    const SizedBox(width: 4),
+                    Icon(Icons.battery_full, size: 12, color: scheme.onPrimary.withValues(alpha: 0.9)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          // Mini AppBar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            color: scheme.primary,
+            child: Row(
+              children: [
+                Icon(Icons.book, size: 16, color: scheme.onPrimary),
+                const SizedBox(width: 6),
+                Text(
+                  'SplitLedger',
+                  style: TextStyle(
+                    color: scheme.onPrimary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.bolt, size: 16, color: Colors.amberAccent),
+                const SizedBox(width: 8),
+                Icon(Icons.search, size: 15, color: scheme.onPrimary),
+              ],
+            ),
+          ),
+
+          // Mini Body Content
+          Container(
+            color: scheme.surface,
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Active Cycle Capsule & Mode Badge
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: scheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.calendar_month, size: 10, color: scheme.onPrimaryContainer),
+                          const SizedBox(width: 4),
+                          Text(
+                            '7 Oct – 6 Nov 2026',
+                            style: TextStyle(
+                              color: scheme.onPrimaryContainer,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.amber.withValues(alpha: 0.2) : Colors.amber.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(isDark ? Icons.dark_mode : Icons.light_mode, size: 10, color: Colors.amber),
+                          const SizedBox(width: 3),
+                          Text(
+                            isDark ? 'Dark Mode' : 'Light Mode',
+                            style: TextStyle(fontSize: 8.5, fontWeight: FontWeight.bold, color: scheme.onSurface),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Mini Wallet / Balance Card
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.7)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withValues(alpha: 0.15),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.account_balance_wallet, size: 14, color: scheme.primary),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppStrings.tr(language, 'preview_sample_balance'),
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                color: scheme.onSurfaceVariant,
+                              ),
+                            ),
+                            Text(
+                              '₹ 4,850',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle, size: 10, color: scheme.onPrimaryContainer),
+                            const SizedBox(width: 3),
+                            Text(
+                              'On Track',
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onPrimaryContainer,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                // Mini Action Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: scheme.primary,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.bolt, size: 12, color: scheme.onPrimary),
+                            const SizedBox(width: 3),
+                            Text(
+                              AppStrings.tr(language, 'preview_quick_spend'),
+                              style: TextStyle(
+                                color: scheme.onPrimary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: scheme.secondaryContainer,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          AppStrings.tr(language, 'you_paid'),
+                          style: TextStyle(
+                            color: scheme.onSecondaryContainer,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Container(
+                        height: 28,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: scheme.primary.withValues(alpha: 0.5)),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          AppStrings.tr(language, 'settle_up'),
+                          style: TextStyle(
+                            color: scheme.primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+
+                // Mini Transaction Tile
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerLow,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: scheme.primaryContainer,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.shopping_cart, size: 11, color: scheme.onPrimaryContainer),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              AppStrings.tr(language, 'preview_sample_tx'),
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: scheme.onSurface,
+                              ),
+                            ),
+                            Text(
+                              'Today, 11:30 AM',
+                              style: TextStyle(fontSize: 8.5, color: scheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        '-₹450',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Mini Bottom Nav Bar
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            decoration: BoxDecoration(
+              color: scheme.surfaceContainer,
+              border: Border(top: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.4))),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildMiniNavItem(Icons.home, true, scheme),
+                _buildMiniNavItem(Icons.call_split, false, scheme),
+                _buildMiniNavItem(Icons.bar_chart, false, scheme),
+                _buildMiniNavItem(Icons.settings, false, scheme),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMiniNavItem(IconData icon, bool isActive, ColorScheme scheme) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+      decoration: BoxDecoration(
+        color: isActive ? scheme.primary.withValues(alpha: 0.15) : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        icon,
+        size: 14,
+        color: isActive ? scheme.primary : scheme.onSurfaceVariant.withValues(alpha: 0.7),
+      ),
+    );
+  }
+}
+
+class _ThemeColorCard extends StatelessWidget {
+  final AppThemeColor colorItem;
+  final bool isSelected;
+  final AppLanguage language;
+  final VoidCallback onTap;
+
+  const _ThemeColorCard({
+    required this.colorItem,
+    required this.isSelected,
+    required this.language,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        width: 105,
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? colorItem.color.withValues(alpha: isDark ? 0.25 : 0.12)
+              : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? colorItem.color : theme.colorScheme.outlineVariant,
+            width: isSelected ? 2.5 : 1.0,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: colorItem.color.withValues(alpha: 0.25),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ]
+              : null,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Palette Swatch with mini card mockup
+            Container(
+              height: 48,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    colorItem.color,
+                    colorItem.color.withValues(alpha: 0.75),
+                  ],
+                ),
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Mini preview dots
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.9),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        width: 12,
+                        height: 12,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (isSelected)
+                    Positioned(
+                      top: 4,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.check, size: 10, color: colorItem.color),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              colorItem.getLocalizedLabel(language),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                color: isSelected ? colorItem.color : theme.colorScheme.onSurface,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 

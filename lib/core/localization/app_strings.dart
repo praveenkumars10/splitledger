@@ -78,6 +78,11 @@ class AppStrings {
 
       // Settings & Appearance
       'appearance_theme': 'Appearance & Theme',
+      'theme_preview': 'Live App Theme Preview',
+      'theme_preview_desc': 'Preview how cards, balances, and buttons look across SplitLedger',
+      'preview_sample_balance': 'Your Remaining Balance',
+      'preview_on_track': 'On Track: Healthy Budget',
+      'preview_sample_tx': 'Supermarket Groceries',
       'theme_accent_color': 'Theme Accent Color',
       'theme_mode_system': 'System',
       'theme_mode_light': 'Light',
@@ -288,6 +293,11 @@ class AppStrings {
 
       // Settings & Appearance
       'appearance_theme': 'தோற்றம் & தீம்',
+      'theme_preview': 'நேரலை தீம் முன்னோட்டம்',
+      'theme_preview_desc': 'கார்டுகள், இருப்பு மற்றும் பொத்தான்கள் எவ்வாறு தோன்றும் என்பதைப் பார்க்கவும்',
+      'preview_sample_balance': 'உங்கள் மீதி இருப்பு',
+      'preview_on_track': 'பட்ஜெட் கட்டுக்குள் உள்ளது',
+      'preview_sample_tx': 'சூப்பர் மார்க்கெட் மளிகை',
       'theme_accent_color': 'தீம் முதன்மை நிறம்',
       'theme_mode_system': 'கணினி அமைப்பு',
       'theme_mode_light': 'ஒளி பயன்முறை',
