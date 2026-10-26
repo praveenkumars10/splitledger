@@ -6,6 +6,7 @@ import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
+import '../../core/services/csv_export_service.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import 'add_transaction_page.dart';
@@ -206,6 +207,47 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
       appBar: AppBar(
         title: Text(AppStrings.tr(language, 'history_tab')),
         centerTitle: false,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.table_chart_outlined),
+            tooltip: AppStrings.tr(language, 'export_csv'),
+            onPressed: () async {
+              final transactions = transactionsAsync.asData?.value ?? [];
+              if (transactions.isEmpty) return;
+              final filtered = transactions.where((t) {
+                if (_searchQuery.isNotEmpty) {
+                  final noteMatch = t.note?.toLowerCase().contains(_searchQuery) ?? false;
+                  final categoryMatch = t.category.toLowerCase().contains(_searchQuery);
+                  final nameMatch = t.paidByName.toLowerCase().contains(_searchQuery);
+                  final amountMatch = t.amount.toString().contains(_searchQuery);
+                  if (!noteMatch && !categoryMatch && !nameMatch && !amountMatch) return false;
+                }
+                if (_selectedTypeFilter == 'paid' && t.type != TransactionType.paid) return false;
+                if (_selectedTypeFilter == 'received' && t.type != TransactionType.received) return false;
+                return true;
+              }).toList();
+
+              if (filtered.isEmpty) return;
+
+              try {
+                final file = await CsvExportService.exportTransactionsCsv(
+                  transactions: filtered,
+                  householdName: household?.name ?? 'Household',
+                  periodLabel: _searchQuery.isNotEmpty ? 'Filtered' : 'Full_History',
+                );
+                await CsvExportService.shareCsvFile(
+                  file: file,
+                  householdName: household?.name ?? 'Household',
+                  periodLabel: _searchQuery.isNotEmpty ? 'Filtered' : 'Full_History',
+                );
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('CSV Export failed: $e')));
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [

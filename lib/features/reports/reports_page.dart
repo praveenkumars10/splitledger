@@ -13,6 +13,7 @@ import '../../core/group_split_calculator.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../core/preferences/app_preferences.dart';
+import '../../core/services/csv_export_service.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
@@ -148,32 +149,23 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     }
   }
 
-  Future<void> _exportCsv(List<TransactionModel> transactions, String householdName) async {
+  Future<void> _exportCsv(
+    List<TransactionModel> transactions,
+    String householdName, {
+    String? periodLabel,
+  }) async {
     try {
-      final buffer = StringBuffer();
-      buffer.writeln('Date,Time,Description,Category,Paid By,Type,Amount (INR)');
-      for (final tx in transactions) {
-        final dateStr = DateFormat('yyyy-MM-dd').format(tx.date);
-        final timeStr = DateFormat('hh:mm a').format(tx.date);
-        final noteStr = (tx.note ?? '').replaceAll('"', '""');
-        final categoryStr = tx.category.replaceAll('"', '""');
-        final payerStr = tx.paidByName.replaceAll('"', '""');
-        final typeStr = tx.type == TransactionType.paid ? 'Paid' : 'Received';
-        final amountStr = tx.amount.toStringAsFixed(2);
-        buffer.writeln('"$dateStr","$timeStr","$noteStr","$categoryStr","$payerStr","$typeStr",$amountStr');
-      }
-
-      final dir = await getTemporaryDirectory();
-      final periodName = _allTime ? 'All_Time' : _monthFormat.format(_selectedMonth).replaceAll(' ', '_');
-      final file = File('${dir.path}/SplitLedger_Report_$periodName.csv');
-      await file.writeAsString(buffer.toString());
+      final file = await CsvExportService.exportTransactionsCsv(
+        transactions: transactions,
+        householdName: householdName,
+        periodLabel: periodLabel ?? (_allTime ? 'All Time' : _monthFormat.format(_selectedMonth)),
+      );
 
       if (mounted) {
-        await SharePlus.instance.share(
-          ShareParams(
-            files: [XFile(file.path)],
-            text: 'SplitLedger Report ($householdName - ${_allTime ? "All Time" : _monthFormat.format(_selectedMonth)})',
-          ),
+        await CsvExportService.shareCsvFile(
+          file: file,
+          householdName: householdName,
+          periodLabel: periodLabel ?? (_allTime ? 'All Time' : _monthFormat.format(_selectedMonth)),
         );
       }
     } catch (e) {
@@ -447,7 +439,11 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: ElevatedButton.icon(
-                        onPressed: () => _exportCsv(periodTransactions, household?.name ?? 'Household'),
+                        onPressed: () => _exportCsv(
+                          periodTransactions,
+                          household?.name ?? 'Household',
+                          periodLabel: _allTime ? 'All Time' : activeCycle.label,
+                        ),
                         icon: const Icon(Icons.table_chart_outlined, color: Colors.white),
                         label: Text(AppStrings.tr(language, 'export_csv'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
