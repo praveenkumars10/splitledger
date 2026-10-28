@@ -12,6 +12,8 @@ import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import 'add_transaction_page.dart';
 import 'transaction_repository.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 
 class TransactionHistoryPage extends ConsumerStatefulWidget {
   const TransactionHistoryPage({super.key});
@@ -261,6 +263,10 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
         title: Text(AppStrings.tr(language, 'history_tab')),
         centerTitle: false,
         actions: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: BookletSelectorBar(compact: true),
+          ),
           IconButton(
             icon: const Icon(Icons.table_chart_outlined),
             tooltip: AppStrings.tr(language, 'export_csv'),
@@ -375,8 +381,9 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (err, stack) => Center(child: Text('Error: $err')),
               data: (transactions) {
+                final activeBookletTransactions = ref.watch(activeBookletTransactionsProvider);
                 // Filter by search query
-                var filtered = transactions.where((t) {
+                var filtered = activeBookletTransactions.where((t) {
                   if (_searchQuery.isNotEmpty) {
                     final noteMatch = t.note?.toLowerCase().contains(_searchQuery) ?? false;
                     final categoryMatch = t.category.toLowerCase().contains(_searchQuery);

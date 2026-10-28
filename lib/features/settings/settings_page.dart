@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'package:split_ledger/features/auth/auth_controller.dart';
-import '../../core/date_filters.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 import '../../core/preferences/app_preferences.dart';
@@ -18,6 +17,8 @@ import '../wallet/wallet_repository.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 import '../../core/constants/app_version.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
@@ -177,6 +178,7 @@ class SettingsPage extends ConsumerWidget {
     final themeSettings = ref.watch(themeControllerProvider);
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
+    final activeBooklet = ref.watch(activeBookletProvider);
     final currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
@@ -598,27 +600,19 @@ class SettingsPage extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.teal.withValues(alpha: 0.15),
+                  color: Colors.blue.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.calendar_month, color: Colors.teal),
+                child: const Icon(Icons.auto_stories, color: Colors.blue),
               ),
-              title: Text(AppStrings.tr(language, 'salary_cycle'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(AppStrings.tr(language, 'manage_booklets'), style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
-                (household.cycleStartDay) == 1
-                    ? 'Day 1 (${AppStrings.tr(language, 'monthly')}: ${getCycleRangeForDate(DateTime.now(), 1).label})'
-                    : 'Day ${household.cycleStartDay} (${getCycleRangeForDate(DateTime.now(), household.cycleStartDay).label})',
+                activeBooklet != null
+                    ? '${AppStrings.tr(language, 'active_booklet')}: ${activeBooklet.name}'
+                    : AppStrings.tr(language, 'manage_booklets_desc'),
               ),
-              trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (dialogCtx) => _EditCycleStartDayDialog(
-                    householdId: household.id,
-                    initialCycleStartDay: household.cycleStartDay,
-                  ),
-                );
-              },
+              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+              onTap: () => showBookletSwitchSheet(context),
             ),
           ] else ...[
             ListTile(
@@ -626,25 +620,19 @@ class SettingsPage extends ConsumerWidget {
               leading: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.teal.withValues(alpha: 0.15),
+                  color: Colors.blue.withValues(alpha: 0.15),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.calendar_month, color: Colors.teal),
+                child: const Icon(Icons.auto_stories, color: Colors.blue),
               ),
-              title: Text(AppStrings.tr(language, 'salary_cycle'), style: const TextStyle(fontWeight: FontWeight.bold)),
+              title: Text(AppStrings.tr(language, 'manage_booklets'), style: const TextStyle(fontWeight: FontWeight.bold)),
               subtitle: Text(
-                'Day ${preferences.cycleStartDay} (${getCycleRangeForDate(DateTime.now(), preferences.cycleStartDay).label})',
+                activeBooklet != null
+                    ? '${AppStrings.tr(language, 'active_booklet')}: ${activeBooklet.name}'
+                    : AppStrings.tr(language, 'manage_booklets_desc'),
               ),
-              trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (dialogCtx) => _EditCycleStartDayDialog(
-                    householdId: null,
-                    initialCycleStartDay: preferences.cycleStartDay,
-                  ),
-                );
-              },
+              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+              onTap: () => showBookletSwitchSheet(context),
             ),
           ],
           const Divider(),
@@ -1099,236 +1087,6 @@ class _EditHouseholdNameDialogState extends ConsumerState<_EditHouseholdNameDial
         TextButton(
           onPressed: _handleSave,
           child: Text(AppStrings.tr(language, 'save')),
-        ),
-      ],
-    );
-  }
-}
-
-class _EditCycleStartDayDialog extends ConsumerStatefulWidget {
-  final String? householdId;
-  final int initialCycleStartDay;
-
-  const _EditCycleStartDayDialog({
-    required this.householdId,
-    required this.initialCycleStartDay,
-  });
-
-  @override
-  ConsumerState<_EditCycleStartDayDialog> createState() => _EditCycleStartDayDialogState();
-}
-
-class _EditCycleStartDayDialogState extends ConsumerState<_EditCycleStartDayDialog> {
-  late int _selectedDay;
-  late final TextEditingController _dayController;
-  bool _isLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedDay = widget.initialCycleStartDay.clamp(1, 31);
-    _dayController = TextEditingController(text: _selectedDay.toString());
-  }
-
-  @override
-  void dispose() {
-    _dayController.dispose();
-    super.dispose();
-  }
-
-  void _onDayChanged(int day) {
-    final clamped = day.clamp(1, 31);
-    setState(() {
-      _selectedDay = clamped;
-      _dayController.text = clamped.toString();
-    });
-  }
-
-  Future<void> _handleSave() async {
-    final language = ref.read(languageControllerProvider);
-    final messenger = ScaffoldMessenger.of(context);
-    setState(() => _isLoading = true);
-
-    try {
-      if (widget.householdId != null) {
-        await ref
-            .read(householdRepositoryProvider)
-            .updateHouseholdCycleStartDay(widget.householdId!, _selectedDay);
-      }
-      await ref.read(appPreferencesProvider.notifier).setCycleStartDay(_selectedDay);
-
-      if (mounted) {
-        Navigator.of(context).pop();
-        messenger.showSnackBar(
-          SnackBar(
-            content: Text(AppStrings.tr(language, 'cycle_saved')),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-        messenger.showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final language = ref.watch(languageControllerProvider);
-    final now = DateTime.now();
-    final currentCycle = getCycleRangeForDate(now, _selectedDay);
-    final nextCycle = getCycleRangeWithOffset(now, _selectedDay, 1);
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return AlertDialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.teal.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Icon(Icons.calendar_month, color: Colors.teal),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              AppStrings.tr(language, 'edit_cycle_title'),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
-            ),
-          ),
-        ],
-      ),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              AppStrings.tr(language, 'edit_cycle_desc'),
-              style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              AppStrings.tr(language, 'cycle_start_day'),
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [1, 5, 7, 10, 15, 25, 30].map((preset) {
-                  final isSelected = _selectedDay == preset;
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6.0),
-                    child: ChoiceChip(
-                      label: Text(preset == 1 ? '1st (Month)' : '$preset${preset == 7 ? ' ★' : ''}'),
-                      selected: isSelected,
-                      selectedColor: colorScheme.primary,
-                      labelStyle: TextStyle(
-                        color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
-                        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                      ),
-                      onSelected: (selected) {
-                        if (selected) _onDayChanged(preset);
-                      },
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: Slider(
-                    value: _selectedDay.toDouble(),
-                    min: 1,
-                    max: 31,
-                    divisions: 30,
-                    label: 'Day $_selectedDay',
-                    onChanged: (val) => _onDayChanged(val.round()),
-                  ),
-                ),
-                Container(
-                  width: 52,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: colorScheme.primary, width: 1.5),
-                    borderRadius: BorderRadius.circular(8),
-                    color: colorScheme.primary.withValues(alpha: 0.08),
-                  ),
-                  child: Text(
-                    '$_selectedDay',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: colorScheme.outlineVariant),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.event_available, size: 16, color: Colors.teal),
-                      const SizedBox(width: 6),
-                      Text(
-                        AppStrings.tr(language, 'active_cycle'),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    currentCycle.label,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.update, size: 14, color: Colors.grey),
-                      const SizedBox(width: 6),
-                      Text(
-                        'Next Cycle: ${nextCycle.label}',
-                        style: TextStyle(fontSize: 11, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: _isLoading ? null : () => Navigator.of(context).pop(),
-          child: Text(AppStrings.tr(language, 'cancel')),
-        ),
-        FilledButton(
-          onPressed: _isLoading ? null : _handleSave,
-          child: _isLoading
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Text(AppStrings.tr(language, 'save')),
         ),
       ],
     );

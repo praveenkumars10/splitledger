@@ -4,12 +4,13 @@ import 'package:intl/intl.dart';
 
 import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
-import '../../core/preferences/app_preferences.dart';
 import '../../core/services/upi_whatsapp_service.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
 
@@ -21,31 +22,11 @@ class SplitSummaryPage extends ConsumerStatefulWidget {
 }
 
 class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
-  DateTime _selectedCycleDate = DateTime.now();
   bool _allTime = false;
   DateTime? _customRangeStart;
   DateTime? _customRangeEnd;
 
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
-
-  Future<void> _selectCycleMonth() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _selectedCycleDate,
-      firstDate: DateTime(now.year - 5),
-      lastDate: DateTime(now.year + 1),
-      initialDatePickerMode: DatePickerMode.year,
-    );
-    if (picked != null) {
-      setState(() {
-        _selectedCycleDate = DateTime(picked.year, picked.month, _selectedCycleDate.day);
-        _allTime = false;
-        _customRangeStart = null;
-        _customRangeEnd = null;
-      });
-    }
-  }
 
   Future<void> _selectCustomDateRange() async {
     final now = DateTime.now();
@@ -82,6 +63,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
       date: DateTime.now(),
       type: TransactionType.received,
       createdAt: DateTime.now(),
+      bookletId: ref.read(activeBookletProvider)?.id,
     );
 
     try {
@@ -104,13 +86,11 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
-    final preferences = ref.watch(appPreferencesProvider);
     final language = ref.watch(languageControllerProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
-    final colorScheme = Theme.of(context).colorScheme;
 
-    final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
-    final activeCycle = getCycleRangeForDate(_selectedCycleDate, cycleStartDay);
+    final activeBooklet = ref.watch(activeBookletProvider);
+    final activeBookletTx = ref.watch(activeBookletTransactionsProvider);
     final isCustomActive = !_allTime && _customRangeStart != null && _customRangeEnd != null;
 
     return Scaffold(
@@ -118,6 +98,12 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
         backgroundColor: Theme.of(context).colorScheme.primary,
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: Text(AppStrings.tr(language, 'split_tab')),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: BookletSelectorBar(compact: true),
+          ),
+        ],
       ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -133,9 +119,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                 .where((tx) => isInDateRange(tx.date, _customRangeStart!, _customRangeEnd!))
                 .toList();
           } else {
-            periodTransactions = transactions
-                .where((tx) => activeCycle.contains(tx.date))
-                .toList();
+            periodTransactions = activeBookletTx;
           }
 
           final groupMembers = household?.members.map((m) => (uid: m.uid, name: m.name)).toList() ?? [];
@@ -154,7 +138,7 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
             final eStr = DateFormat('d MMM yyyy').format(_customRangeEnd!);
             activePeriodTitle = '$sStr – $eStr';
           } else {
-            activePeriodTitle = activeCycle.label;
+            activePeriodTitle = activeBooklet?.name ?? AppStrings.tr(language, 'booklet');
           }
 
           return SingleChildScrollView(
@@ -162,30 +146,16 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Period selector
+                // Period / Booklet selector
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Active Booklet Chip
                       ChoiceChip(
-                        label: Text(AppStrings.tr(language, 'all_time')),
-                        selected: _allTime,
-                        onSelected: (selected) {
-                          setState(() {
-                            _allTime = selected;
-                            if (selected) {
-                              _customRangeStart = null;
-                              _customRangeEnd = null;
-                            }
-                          });
-                        },
-                      ),
-                      const SizedBox(width: 8),
-                      // Household cycle chip
-                      ChoiceChip(
-                        avatar: cycleStartDay > 1 ? const Icon(Icons.calendar_month, size: 16) : null,
-                        label: Text(activeCycle.label),
+                        avatar: const Icon(Icons.menu_book_rounded, size: 16),
+                        label: Text(activeBooklet?.name ?? AppStrings.tr(language, 'booklet')),
                         selected: !_allTime && !isCustomActive,
                         onSelected: (selected) {
                           if (selected) {
@@ -195,27 +165,11 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                               _customRangeEnd = null;
                             });
                           } else {
-                            _selectCycleMonth();
+                            showBookletSwitchSheet(context);
                           }
                         },
                       ),
-                      if (!_allTime && !isCustomActive) ...[
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left),
-                          tooltip: 'Previous cycle',
-                          onPressed: () => setState(() {
-                            _selectedCycleDate = getCycleRangeWithOffset(_selectedCycleDate, cycleStartDay, -1).start;
-                          }),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right),
-                          tooltip: 'Next cycle',
-                          onPressed: () => setState(() {
-                            _selectedCycleDate = getCycleRangeWithOffset(_selectedCycleDate, cycleStartDay, 1).start;
-                          }),
-                        ),
-                      ],
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       // Custom date range chip / button
                       if (isCustomActive)
                         InputChip(
@@ -239,19 +193,23 @@ class _SplitSummaryPageState extends ConsumerState<SplitSummaryPage> {
                           label: Text(AppStrings.tr(language, 'custom_range')),
                           onPressed: _selectCustomDateRange,
                         ),
+                      const SizedBox(width: 8),
+                      ChoiceChip(
+                        label: Text(AppStrings.tr(language, 'all_time')),
+                        selected: _allTime,
+                        onSelected: (selected) {
+                          setState(() {
+                            _allTime = selected;
+                            if (selected) {
+                              _customRangeStart = null;
+                              _customRangeEnd = null;
+                            }
+                          });
+                        },
+                      ),
                     ],
                   ),
                 ),
-                if (cycleStartDay > 1 && !_allTime && !isCustomActive)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6.0, bottom: 2.0),
-                    child: Center(
-                      child: Text(
-                        '★ Household Salary Cycle: Day $cycleStartDay of month',
-                        style: TextStyle(fontSize: 11, color: colorScheme.primary, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 12),
 
                 // Total Expense Card

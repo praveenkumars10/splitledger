@@ -16,6 +16,7 @@ class AppPreferences {
   final String currencySymbol;
   final String currencyCode;
   final int cycleStartDay;
+  final String? activeBookletId;
 
   const AppPreferences({
     this.isPrivacyMode = false,
@@ -23,6 +24,7 @@ class AppPreferences {
     this.currencySymbol = '₹',
     this.currencyCode = 'en_IN',
     this.cycleStartDay = 1,
+    this.activeBookletId,
   });
 
   AppPreferences copyWith({
@@ -31,6 +33,7 @@ class AppPreferences {
     String? currencySymbol,
     String? currencyCode,
     int? cycleStartDay,
+    String? activeBookletId,
   }) {
     return AppPreferences(
       isPrivacyMode: isPrivacyMode ?? this.isPrivacyMode,
@@ -38,6 +41,7 @@ class AppPreferences {
       currencySymbol: currencySymbol ?? this.currencySymbol,
       currencyCode: currencyCode ?? this.currencyCode,
       cycleStartDay: cycleStartDay ?? this.cycleStartDay,
+      activeBookletId: activeBookletId ?? this.activeBookletId,
     );
   }
 }
@@ -48,6 +52,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
   static const _keyCurrencySymbol = 'pref_currency_symbol';
   static const _keyCurrencyCode = 'pref_currency_code';
   static const _keyCycleStartDay = 'pref_cycle_start_day';
+  static const _keyActiveBookletId = 'pref_active_booklet_id';
 
   @override
   AppPreferences build() {
@@ -63,6 +68,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
       final sym = prefs.getString(_keyCurrencySymbol) ?? '₹';
       final code = prefs.getString(_keyCurrencyCode) ?? 'en_IN';
       final cycleDay = prefs.getInt(_keyCycleStartDay) ?? 1;
+      final activeBookletId = prefs.getString(_keyActiveBookletId);
 
       state = AppPreferences(
         isPrivacyMode: privacy,
@@ -70,6 +76,7 @@ class AppPreferencesController extends Notifier<AppPreferences> {
         currencySymbol: sym,
         currencyCode: code,
         cycleStartDay: cycleDay.clamp(1, 31),
+        activeBookletId: activeBookletId,
       );
     } catch (_) {}
   }
@@ -106,6 +113,18 @@ class AppPreferencesController extends Notifier<AppPreferences> {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt(_keyCycleStartDay, clamped);
+    } catch (_) {}
+  }
+
+  Future<void> setActiveBookletId(String? bookletId) async {
+    state = state.copyWith(activeBookletId: bookletId);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (bookletId == null) {
+        await prefs.remove(_keyActiveBookletId);
+      } else {
+        await prefs.setString(_keyActiveBookletId, bookletId);
+      }
     } catch (_) {}
   }
 }

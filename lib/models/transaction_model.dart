@@ -24,6 +24,9 @@ class TransactionModel {
   /// Optional custom split weights by member uid.
   final Map<String, double>? splitShares;
 
+  /// Optional ID of the booklet / cashbook this transaction belongs to.
+  final String? bookletId;
+
   TransactionModel({
     required this.id,
     required this.amount,
@@ -42,6 +45,7 @@ class TransactionModel {
     this.recurrence = RecurrenceInterval.none,
     this.recurrenceEndDate,
     this.nextOccurrence,
+    this.bookletId,
   });
 
   final RecurrenceInterval recurrence;
@@ -93,6 +97,7 @@ class TransactionModel {
           : RecurrenceInterval.none,
       recurrenceEndDate: map['recurrenceEndDate'] != null ? (map['recurrenceEndDate'] as Timestamp).toDate() : null,
       nextOccurrence: map['nextOccurrence'] != null ? (map['nextOccurrence'] as Timestamp).toDate() : null,
+      bookletId: map['bookletId'],
     );
   }
 
@@ -114,6 +119,7 @@ class TransactionModel {
     RecurrenceInterval? recurrence,
     DateTime? recurrenceEndDate,
     DateTime? nextOccurrence,
+    String? bookletId,
   }) => TransactionModel(
         id: id ?? this.id,
         amount: amount ?? this.amount,
@@ -132,6 +138,7 @@ class TransactionModel {
         recurrence: recurrence ?? this.recurrence,
         recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
         nextOccurrence: nextOccurrence ?? this.nextOccurrence,
+        bookletId: bookletId ?? this.bookletId,
       );
 
   Map<String, dynamic> toMap() {
@@ -152,6 +159,7 @@ class TransactionModel {
       'recurrence': recurrence.name,
       'recurrenceEndDate': recurrenceEndDate != null ? Timestamp.fromDate(recurrenceEndDate!) : null,
       'nextOccurrence': nextOccurrence != null ? Timestamp.fromDate(nextOccurrence!) : null,
+      'bookletId': bookletId,
     };
   }
 
@@ -174,6 +182,7 @@ class TransactionModel {
       'recurrence': recurrence.name,
       'recurrenceEndDate': recurrenceEndDate?.toIso8601String(),
       'nextOccurrence': nextOccurrence?.toIso8601String(),
+      'bookletId': bookletId,
     };
   }
 
@@ -218,6 +227,7 @@ class TransactionModel {
           : RecurrenceInterval.none,
       recurrenceEndDate: parseNullableDate(json['recurrenceEndDate']),
       nextOccurrence: parseNullableDate(json['nextOccurrence']),
+      bookletId: json['bookletId'],
     );
   }
 }

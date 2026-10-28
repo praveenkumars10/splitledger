@@ -13,6 +13,8 @@ import '../settings/settings_page.dart';
 import '../transactions/add_transaction_page.dart';
 import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 import '../transactions/quick_add_bottom_sheet.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
@@ -279,6 +281,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         foregroundColor: Theme.of(context).colorScheme.onPrimary,
         title: Text(shortName(currentUser?.displayName ?? currentUser?.email ?? 'Dashboard')),
         actions: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: BookletSelectorBar(compact: true),
+          ),
           IconButton(
             icon: Icon(
               preferences.isPrivacyMode ? Icons.visibility_off : Icons.visibility,
@@ -308,13 +314,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             onSelected: (value) {
               switch (value) {
-                case 'Cycle':
-                  setState(() {
-                    _selectedTimeFilter = 'Monthly';
-                    _rangeStart = null;
-                    _rangeEnd = null;
-                    _selectedMonth = DateTime.now();
-                  });
+                case 'Booklet':
+                  showBookletSwitchSheet(context);
                   break;
                 case 'Search':
                   _showKeywordSearch();
@@ -332,26 +333,22 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             },
             itemBuilder: (context) {
               final colorScheme = Theme.of(context).colorScheme;
-              final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
-              final activeCycle = getCycleRangeForDate(_selectedMonth, cycleStartDay);
               return [
                 PopupMenuItem(
-                  value: 'Cycle',
+                  value: 'Booklet',
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: Colors.teal.withValues(alpha: 0.12),
+                          color: Colors.blue.withValues(alpha: 0.12),
                           shape: BoxShape.circle,
                         ),
-                        child: const Icon(Icons.calendar_month, size: 18, color: Colors.teal),
+                        child: const Icon(Icons.menu_book_rounded, size: 18, color: Colors.blue),
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        cycleStartDay > 1
-                            ? '${AppStrings.tr(language, 'salary_cycle')} (${activeCycle.label})'
-                            : AppStrings.tr(language, 'monthly'),
+                        AppStrings.tr(language, 'switch_booklet'),
                         style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
                       ),
                     ],
@@ -445,10 +442,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(_isMonthlyFilter ? (household?.cycleStartDay != null && household!.cycleStartDay > 1 ? 152 : 145) : 95),
+          preferredSize: Size.fromHeight(_isMonthlyFilter ? 145 : 95),
           child: Column(
             children: [
-              // Month / Cycle selector row
+              // Month selector row
               if (_isMonthlyFilter) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 2),
@@ -457,38 +454,24 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     children: [
                       IconButton(
                         icon: const Icon(Icons.chevron_left, color: Colors.white),
-                        tooltip: 'Previous cycle',
+                        tooltip: 'Previous month',
                         onPressed: () => setState(() {
-                          final cycleDay = household?.cycleStartDay ?? preferences.cycleStartDay;
-                          if (cycleDay > 1) {
-                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleDay, -1).start;
-                          } else {
-                            _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
-                          }
+                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month - 1);
                         }),
                       ),
                       TextButton.icon(
-                        icon: (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
-                            ? const Icon(Icons.calendar_month, color: Colors.white, size: 16)
-                            : const SizedBox.shrink(),
+                        icon: const Icon(Icons.calendar_month, color: Colors.white, size: 16),
                         onPressed: _selectMonth,
                         label: Text(
-                          (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
-                              ? getCycleRangeForDate(_selectedMonth, household?.cycleStartDay ?? preferences.cycleStartDay).label
-                              : _monthFormat.format(_selectedMonth),
+                          _monthFormat.format(_selectedMonth),
                           style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       ),
                       IconButton(
                         icon: const Icon(Icons.chevron_right, color: Colors.white),
-                        tooltip: 'Next cycle',
+                        tooltip: 'Next month',
                         onPressed: () => setState(() {
-                          final cycleDay = household?.cycleStartDay ?? preferences.cycleStartDay;
-                          if (cycleDay > 1) {
-                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleDay, 1).start;
-                          } else {
-                            _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
-                          }
+                          _selectedMonth = DateTime(_selectedMonth.year, _selectedMonth.month + 1);
                         }),
                       ),
                     ],
@@ -505,12 +488,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                     ('All', AppStrings.tr(language, 'all_time')),
                     ('Daily', AppStrings.tr(language, 'daily')),
                     ('Weekly', AppStrings.tr(language, 'weekly')),
-                    (
-                      'Monthly',
-                      (household?.cycleStartDay ?? preferences.cycleStartDay) > 1
-                          ? AppStrings.tr(language, 'cycle_tab')
-                          : AppStrings.tr(language, 'monthly')
-                    ),
+                    ('Monthly', AppStrings.tr(language, 'monthly')),
                     ('Yearly', AppStrings.tr(language, 'yearly')),
                   ].map((filterItem) {
                     final filterKey = filterItem.$1;
@@ -610,10 +588,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
         data: (transactions) {
           if (currentUser == null) return const Center(child: Text('Not signed in'));
 
-          final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
+          final activeBookletTransactions = ref.watch(activeBookletTransactionsProvider);
 
           final filtered = filterTransactions(
-            transactions,
+            activeBookletTransactions,
             timeFilter: _selectedTimeFilter,
             userFilter: _selectedUserFilter,
             currentUserId: currentUser.uid,
@@ -623,18 +601,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             keyword: _keyword,
             minAmount: _minAmount,
             maxAmount: _maxAmount,
-            cycleStartDay: cycleStartDay,
           );
 
           final settlementTransactions = filterTransactions(
-            transactions,
+            activeBookletTransactions,
             timeFilter: _selectedTimeFilter,
             userFilter: 'all',
             currentUserId: currentUser.uid,
             selectedMonth: _selectedMonth,
             rangeStart: _rangeStart,
             rangeEnd: _rangeEnd,
-            cycleStartDay: cycleStartDay,
           );
           final periodSplit = calculateGroupSplit(
             transactions: settlementTransactions,

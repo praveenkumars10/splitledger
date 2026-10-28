@@ -40,6 +40,7 @@ class TransactionRepository {
       recurrence: transaction.recurrence,
       recurrenceEndDate: transaction.recurrenceEndDate,
       nextOccurrence: transaction.nextOccurrence,
+      bookletId: transaction.bookletId,
     );
 
     await docRef.set(newTx.toMap());

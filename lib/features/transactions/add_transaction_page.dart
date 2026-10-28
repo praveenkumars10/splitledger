@@ -13,6 +13,8 @@ import '../../models/household_model.dart';
 import 'transaction_repository.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 
 class AddTransactionPage extends ConsumerStatefulWidget {
   final TransactionType type;
@@ -290,6 +292,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         recurrence: _selectedRecurrence,
         recurrenceEndDate: _recurrenceEndDate,
         nextOccurrence: _selectedRecurrence == RecurrenceInterval.none ? null : TransactionModel.calculateNextOccurrence(_selectedDate, _selectedRecurrence),
+        bookletId: widget.transaction?.bookletId ?? ref.read(activeBookletProvider)?.id,
       );
 
       if (_isEditing) {
@@ -326,6 +329,12 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppStrings.tr(language, _isEditing ? 'edit_transaction' : 'add_transaction')),
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: BookletSelectorBar(compact: true),
+          ),
+        ],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,

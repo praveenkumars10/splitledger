@@ -8,7 +8,6 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
 import '../../core/localization/app_strings.dart';
 import '../../core/localization/language_controller.dart';
@@ -20,6 +19,8 @@ import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import '../transactions/transaction_repository.dart';
 import '../wallet/wallet_repository.dart';
+import '../booklet/booklet_repository.dart';
+import '../booklet/widgets/booklet_selector_bar.dart';
 import 'widgets/category_breakdown_card.dart';
 import 'widgets/daily_budget_card.dart';
 import '../budget/widgets/budget_alert_card.dart';
@@ -34,6 +35,7 @@ class ReportsPage extends ConsumerStatefulWidget {
 class _ReportsPageState extends ConsumerState<ReportsPage> {
   DateTime _selectedMonth = DateTime.now();
   bool _allTime = false;
+  bool _byMonth = false;
 
   final _monthFormat = DateFormat('MMM yyyy');
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
@@ -51,6 +53,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
       setState(() {
         _selectedMonth = DateTime(picked.year, picked.month);
         _allTime = false;
+        _byMonth = true;
       });
     }
   }
@@ -184,15 +187,21 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
-    final colorScheme = Theme.of(context).colorScheme;
 
     final cycleStartDay = household?.cycleStartDay ?? preferences.cycleStartDay;
-    final activeCycle = getCycleRangeForDate(_selectedMonth, cycleStartDay);
+    final activeBooklet = ref.watch(activeBookletProvider);
+    final activeBookletTx = ref.watch(activeBookletTransactionsProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(AppStrings.tr(language, 'reports_tab')),
         centerTitle: false,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: BookletSelectorBar(compact: true),
+          ),
+        ],
       ),
       body: transactionsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -202,7 +211,13 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
           final periodTransactions = _allTime
               ? transactions
-              : transactions.where((tx) => activeCycle.contains(tx.date)).toList();
+              : (_byMonth
+                  ? transactions.where((tx) => tx.date.year == _selectedMonth.year && tx.date.month == _selectedMonth.month).toList()
+                  : activeBookletTx);
+
+          final periodLabel = _allTime
+              ? 'All Time'
+              : (_byMonth ? _monthFormat.format(_selectedMonth) : (activeBooklet?.name ?? 'Cashbook'));
 
           final groupMembers = household?.members.map((m) => (uid: m.uid, name: m.name)).toList() ?? [];
           final split = calculateGroupSplit(
@@ -219,55 +234,51 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Period selector
+                // Period / Booklet selector
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      // Active Booklet Chip
+                      ChoiceChip(
+                        avatar: const Icon(Icons.menu_book_rounded, size: 16),
+                        label: Text(activeBooklet?.name ?? AppStrings.tr(language, 'booklet')),
+                        selected: !_allTime && !_byMonth,
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _allTime = false;
+                              _byMonth = false;
+                            });
+                          } else {
+                            showBookletSwitchSheet(context);
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // By Month Chip
+                      ChoiceChip(
+                        avatar: const Icon(Icons.calendar_month, size: 16),
+                        label: Text(_monthFormat.format(_selectedMonth)),
+                        selected: !_allTime && _byMonth,
+                        onSelected: (selected) {
+                          _selectMonth();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      // All Time Chip
                       ChoiceChip(
                         label: Text(AppStrings.tr(language, 'all_time')),
                         selected: _allTime,
-                        onSelected: (selected) => setState(() => _allTime = selected),
+                        onSelected: (selected) => setState(() {
+                          _allTime = selected;
+                          if (selected) _byMonth = false;
+                        }),
                       ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        avatar: cycleStartDay > 1 ? const Icon(Icons.calendar_month, size: 16) : null,
-                        label: Text(_allTime ? AppStrings.tr(language, 'pick_month') : activeCycle.label),
-                        selected: !_allTime,
-                        onSelected: (selected) {
-                          if (selected) _selectMonth();
-                        },
-                      ),
-                      if (!_allTime) ...[
-                        IconButton(
-                          icon: const Icon(Icons.chevron_left),
-                          tooltip: 'Previous cycle',
-                          onPressed: () => setState(() {
-                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleStartDay, -1).start;
-                          }),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.chevron_right),
-                          tooltip: 'Next cycle',
-                          onPressed: () => setState(() {
-                            _selectedMonth = getCycleRangeWithOffset(_selectedMonth, cycleStartDay, 1).start;
-                          }),
-                        ),
-                      ],
                     ],
                   ),
                 ),
-                if (cycleStartDay > 1 && !_allTime)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4.0, bottom: 2.0),
-                    child: Center(
-                      child: Text(
-                        '★ Household Salary Cycle: Day $cycleStartDay of month',
-                        style: TextStyle(fontSize: 11, color: colorScheme.primary, fontWeight: FontWeight.w500),
-                      ),
-                    ),
-                  ),
                 const SizedBox(height: 16),
 
                 // Daily Budget Card
@@ -424,7 +435,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                           split,
                           periodTransactions,
                           household?.name ?? 'Household',
-                          periodLabel: _allTime ? 'All Time' : activeCycle.label,
+                          periodLabel: periodLabel,
                         ),
                         icon: const Icon(Icons.picture_as_pdf, color: Colors.white),
                         label: Text(AppStrings.tr(language, 'export_pdf'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -442,7 +453,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
                         onPressed: () => _exportCsv(
                           periodTransactions,
                           household?.name ?? 'Household',
-                          periodLabel: _allTime ? 'All Time' : activeCycle.label,
+                          periodLabel: periodLabel,
                         ),
                         icon: const Icon(Icons.table_chart_outlined, color: Colors.white),
                         label: Text(AppStrings.tr(language, 'export_csv'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),

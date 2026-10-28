@@ -10,6 +10,7 @@ import '../../models/household_model.dart';
 import '../../models/transaction_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
+import '../booklet/booklet_repository.dart';
 import 'transaction_repository.dart';
 
 class QuickAddBottomSheet extends ConsumerStatefulWidget {
@@ -128,6 +129,7 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
         date: DateTime.now(),
         type: _type,
         createdAt: DateTime.now(),
+        bookletId: ref.read(activeBookletProvider)?.id,
       );
 
       await ref.read(transactionRepositoryProvider).addTransaction(household.id, tx);

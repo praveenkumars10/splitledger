@@ -31,6 +31,7 @@ class Household {
   final DateTime createdAt;
   final String inviteCode;
   final int cycleStartDay;
+  final String? activeBookletId;
 
   Household({
     required this.id,
@@ -39,6 +40,7 @@ class Household {
     required this.createdAt,
     required this.inviteCode,
     this.cycleStartDay = 1,
+    this.activeBookletId,
   });
 
   factory Household.fromMap(Map<String, dynamic> map, String id) {
@@ -51,6 +53,7 @@ class Household {
       createdAt: map['createdAt'] != null ? (map['createdAt'] as Timestamp).toDate() : DateTime.now(),
       inviteCode: map['inviteCode'] ?? '',
       cycleStartDay: (map['cycleStartDay'] as num?)?.toInt() ?? 1,
+      activeBookletId: map['activeBookletId'],
     );
   }
 
@@ -62,6 +65,7 @@ class Household {
       'createdAt': Timestamp.fromDate(createdAt),
       'inviteCode': inviteCode,
       'cycleStartDay': cycleStartDay,
+      'activeBookletId': activeBookletId,
     };
   }
 
@@ -72,6 +76,7 @@ class Household {
     DateTime? createdAt,
     String? inviteCode,
     int? cycleStartDay,
+    String? activeBookletId,
   }) {
     return Household(
       id: id ?? this.id,
@@ -80,6 +85,7 @@ class Household {
       createdAt: createdAt ?? this.createdAt,
       inviteCode: inviteCode ?? this.inviteCode,
       cycleStartDay: cycleStartDay ?? this.cycleStartDay,
+      activeBookletId: activeBookletId ?? this.activeBookletId,
     );
   }
 }
