@@ -283,7 +283,9 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
                 // Daily Budget Card
                 DailyBudgetCard(
-                  walletAmount: walletAmount,
+                  walletAmount: (activeBooklet != null && activeBooklet.memberWallets.isNotEmpty)
+                      ? activeBooklet.getMemberWallet(currentUser.uid)
+                      : walletAmount,
                   userTotalSpend: userSpend,
                   cycleStartDay: cycleStartDay,
                 ),

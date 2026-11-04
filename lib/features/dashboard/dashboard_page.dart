@@ -7,6 +7,8 @@ import '../../core/date_filters.dart';
 import '../../core/group_split_calculator.dart';
 import '../../core/utils.dart';
 import '../../models/transaction_model.dart';
+import '../../models/booklet_model.dart';
+import '../../models/household_model.dart';
 import '../auth/auth_controller.dart';
 import '../household/current_household_provider.dart';
 import '../settings/settings_page.dart';
@@ -116,12 +118,20 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
   }
 
-  void _showWalletDialog(double currentAmount, String uid) {
+  void _showWalletDialog({
+    required double currentAmount,
+    required String uid,
+    required BookletModel? activeBooklet,
+    required String selectedUserFilter,
+  }) {
     showDialog(
       context: context,
       builder: (context) => _DashboardWalletDialog(
         currentAmount: currentAmount,
         uid: uid,
+        activeBooklet: activeBooklet,
+        selectedUserFilter: selectedUserFilter,
+        householdId: ref.read(currentHouseholdProvider).asData?.value?.id,
       ),
     );
   }
@@ -147,14 +157,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final activeBooklet = ref.watch(activeBookletProvider);
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
 
     String partnerName = 'Partner';
+    HouseholdMember? partner;
     if (household != null && currentUser != null) {
-      final partner = household.members.where((m) => m.uid != currentUser.uid).firstOrNull;
+      partner = household.members.where((m) => m.uid != currentUser.uid).firstOrNull;
       if (partner != null) {
         partnerName = shortName(partner.name);
       }
@@ -182,19 +194,30 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
               title: Text(AppStrings.tr(language, 'wallet')),
               subtitle: Text(
-                walletAmount > 0
-                    ? _currencyFormat.format(walletAmount)
-                    : AppStrings.tr(language, 'wallet_not_set'),
+                activeBooklet != null && activeBooklet.memberWallets.isNotEmpty
+                    ? '${activeBooklet.name}: ${_currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? ''))}'
+                    : (walletAmount > 0
+                        ? _currencyFormat.format(walletAmount)
+                        : AppStrings.tr(language, 'wallet_not_set')),
                 style: TextStyle(
-                  color: walletAmount > 0 ? Theme.of(context).colorScheme.onSurface : onSurfaceVariant,
-                  fontWeight: walletAmount > 0 ? FontWeight.bold : FontWeight.normal,
+                  color: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
+                      ? Theme.of(context).colorScheme.onSurface
+                      : onSurfaceVariant,
+                  fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
+                      ? FontWeight.bold
+                      : FontWeight.normal,
                 ),
               ),
               trailing: const Icon(Icons.edit, size: 20),
               onTap: () {
                 Navigator.pop(context);
                 if (currentUser != null) {
-                  _showWalletDialog(walletAmount, currentUser.uid);
+                  _showWalletDialog(
+                    currentAmount: activeBooklet?.getMemberWallet(currentUser.uid) ?? walletAmount,
+                    uid: currentUser.uid,
+                    activeBooklet: activeBooklet,
+                    selectedUserFilter: _selectedUserFilter,
+                  );
                 }
               },
             ),
@@ -633,14 +656,66 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             }
           }
 
+          // -------------------------------------------------------------
+          // Dynamic Wallet & Balance calculations for Cashbook & Users
+          // -------------------------------------------------------------
+          final bool isAllUsers = _selectedUserFilter == 'all';
+          final double displayedWalletAmount;
+          final String walletCardTitle;
+
+          if (activeBooklet != null && activeBooklet.memberWallets.isNotEmpty) {
+            if (isAllUsers) {
+              // ALL Transactions: Combine all members' wallets for this cashbook (e.g. 2000 + 2000 = 4000)
+              displayedWalletAmount = activeBooklet.totalWalletAmount;
+              walletCardTitle = AppStrings.tr(language, 'total_wallet');
+            } else if (_selectedUserFilter == 'me') {
+              // Current user's individual wallet in this cashbook
+              displayedWalletAmount = activeBooklet.getMemberWallet(currentUser.uid);
+              walletCardTitle = AppStrings.tr(language, 'your_wallet');
+            } else if (_selectedUserFilter == 'group' && partner != null) {
+              // Partner's individual wallet in 2-member household
+              displayedWalletAmount = activeBooklet.getMemberWallet(partner.uid);
+              walletCardTitle = "${shortName(partner.name)}'s ${AppStrings.tr(language, 'wallet')}";
+            } else {
+              // Specific member UID filter
+              displayedWalletAmount = activeBooklet.getMemberWallet(_selectedUserFilter);
+              final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull;
+              final name = shortName(member?.name ?? 'Member');
+              walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
+            }
+          } else {
+            // Fallback for cashbooks where openingBalance was recorded or user profile wallet
+            final bOpening = activeBooklet?.openingBalance ?? 0.0;
+            if (isAllUsers && bOpening > 0) {
+              displayedWalletAmount = bOpening;
+              walletCardTitle = AppStrings.tr(language, 'total_wallet');
+            } else if (!isAllUsers && bOpening > 0 && currentUser.uid == activeBooklet?.createdByUid) {
+              displayedWalletAmount = bOpening;
+              walletCardTitle = AppStrings.tr(language, 'your_wallet');
+            } else {
+              displayedWalletAmount = walletAmount;
+              walletCardTitle = isAllUsers
+                  ? AppStrings.tr(language, 'total_wallet')
+                  : AppStrings.tr(language, 'wallet');
+            }
+          }
+
           // Balance calculation based on Wallet
           final double remainingBalance;
           final String balanceSubtext;
           final Color balanceColor;
 
-          if (walletAmount > 0) {
-            remainingBalance = walletAmount - totalPaid + totalReceived;
-            balanceSubtext = AppStrings.tr(language, 'your_balance');
+          if (displayedWalletAmount > 0) {
+            remainingBalance = displayedWalletAmount - totalPaid + totalReceived;
+            if (isAllUsers) {
+              balanceSubtext = AppStrings.tr(language, 'group_balance');
+            } else if (_selectedUserFilter == 'me') {
+              balanceSubtext = AppStrings.tr(language, 'your_balance');
+            } else {
+              final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull ?? partner;
+              final name = shortName(member?.name ?? 'Member');
+              balanceSubtext = "$name's ${AppStrings.tr(language, 'your_balance')}";
+            }
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           } else {
             remainingBalance = net;
@@ -943,7 +1018,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       Expanded(
                         child: InkWell(
                           onTap: () {
-                            _showWalletDialog(walletAmount, currentUser.uid);
+                            _showWalletDialog(
+                              currentAmount: displayedWalletAmount,
+                              uid: currentUser.uid,
+                              activeBooklet: activeBooklet,
+                              selectedUserFilter: _selectedUserFilter,
+                            );
                           },
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 2),
@@ -956,7 +1036,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                     FittedBox(
                                       fit: BoxFit.scaleDown,
                                       child: Text(
-                                        AppStrings.tr(language, 'wallet'),
+                                        walletCardTitle,
                                         style: TextStyle(
                                           color: Theme.of(context).colorScheme.primary,
                                           fontSize: 11,
@@ -974,9 +1054,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   child: Text(
                                     preferences.isPrivacyMode
                                         ? '₹••••'
-                                        : (walletAmount > 0 ? _currencyFormat.format(walletAmount) : 'Set ₹'),
+                                        : (displayedWalletAmount > 0 ? _currencyFormat.format(displayedWalletAmount) : 'Set ₹'),
                                     style: TextStyle(
-                                      color: walletAmount > 0 ? Theme.of(context).colorScheme.primary : onSurfaceVariant,
+                                      color: displayedWalletAmount > 0 ? Theme.of(context).colorScheme.primary : onSurfaceVariant,
                                       fontWeight: FontWeight.bold,
                                       fontSize: 11,
                                     ),
@@ -1048,8 +1128,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       Expanded(
                         child: InkWell(
                           onTap: () {
-                            if (walletAmount <= 0) {
-                              _showWalletDialog(walletAmount, currentUser.uid);
+                            if (displayedWalletAmount <= 0) {
+                              _showWalletDialog(
+                                currentAmount: displayedWalletAmount,
+                                uid: currentUser.uid,
+                                activeBooklet: activeBooklet,
+                                selectedUserFilter: _selectedUserFilter,
+                              );
                             }
                           },
                           child: Padding(
@@ -1060,7 +1145,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
-                                    AppStrings.tr(language, 'your_balance'),
+                                    balanceSubtext,
                                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
                                     textAlign: TextAlign.center,
                                   ),
@@ -1071,7 +1156,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                   child: Text(
                                     preferences.isPrivacyMode
                                         ? '₹••••'
-                                        : (walletAmount > 0
+                                        : (displayedWalletAmount > 0
                                             ? _currencyFormat.format(remainingBalance)
                                             : (net.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : '₹${net.abs().toStringAsFixed(0)}')),
                                     style: TextStyle(
@@ -1176,10 +1261,16 @@ class _DashboardKeywordSearchDialogState extends ConsumerState<_DashboardKeyword
 class _DashboardWalletDialog extends ConsumerStatefulWidget {
   final double currentAmount;
   final String uid;
+  final BookletModel? activeBooklet;
+  final String selectedUserFilter;
+  final String? householdId;
 
   const _DashboardWalletDialog({
     required this.currentAmount,
     required this.uid,
+    this.activeBooklet,
+    this.selectedUserFilter = 'all',
+    this.householdId,
   });
 
   @override
@@ -1189,12 +1280,21 @@ class _DashboardWalletDialog extends ConsumerStatefulWidget {
 class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> {
   late final TextEditingController _controller;
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  late String _targetUid;
 
   @override
   void initState() {
     super.initState();
+    final filter = widget.selectedUserFilter;
+    if (filter != 'all' && filter != 'me' && filter != 'group') {
+      _targetUid = filter;
+    } else {
+      _targetUid = widget.uid;
+    }
+
+    final initialAmount = widget.activeBooklet?.getMemberWallet(_targetUid) ?? widget.currentAmount;
     _controller = TextEditingController(
-      text: widget.currentAmount > 0 ? widget.currentAmount.toStringAsFixed(0) : '',
+      text: initialAmount > 0 ? initialAmount.toStringAsFixed(0) : '',
     );
   }
 
@@ -1202,6 +1302,15 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _switchMember(String newUid) {
+    if (_targetUid == newUid) return;
+    setState(() {
+      _targetUid = newUid;
+      final val = widget.activeBooklet?.getMemberWallet(newUid) ?? 0.0;
+      _controller.text = val > 0 ? val.toStringAsFixed(0) : '';
+    });
   }
 
   Future<void> _handleSave() async {
@@ -1220,9 +1329,17 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       try {
-        await ref.read(walletRepositoryProvider).setWalletAmount(widget.uid, parsed);
+        await ref.read(walletRepositoryProvider).setWalletAmount(
+              _targetUid,
+              parsed,
+              householdId: widget.householdId,
+              bookletId: widget.activeBooklet?.id,
+            );
+        final bookletName = widget.activeBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(
-          SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
+          SnackBar(
+            content: Text('$bookletName: ${_currencyFormat.format(parsed)}'),
+          ),
         );
       } catch (e) {
         messenger.showSnackBar(
@@ -1239,55 +1356,145 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
   @override
   Widget build(BuildContext context) {
     final language = ref.watch(languageControllerProvider);
+    final household = ref.watch(currentHouseholdProvider).asData?.value;
+    final members = household?.members ?? [];
+    final bookletName = widget.activeBooklet?.name ?? 'Main Cashbook';
+    final totalWallet = widget.activeBooklet?.totalWalletAmount ?? 0.0;
 
     return AlertDialog(
       title: Row(
         children: [
           Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 8),
-          Text(AppStrings.tr(language, 'wallet_amount')),
+          Expanded(
+            child: Text(
+              widget.activeBooklet != null
+                  ? '$bookletName Wallet'
+                  : AppStrings.tr(language, 'wallet_amount'),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppStrings.tr(language, 'wallet_desc'),
-            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: AppStrings.tr(language, 'wallet_amount'),
-              hintText: 'e.g. 2000 or 2k',
-              prefixText: '₹ ',
-              border: const OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6.0),
-                  child: ActionChip(
-                    label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
-                    onPressed: () {
-                      _controller.text = preset.toString();
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (widget.activeBooklet != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.menu_book_rounded, size: 14, color: Colors.blueAccent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Cashbook: $bookletName',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            if (members.length > 1) ...[
+              Text(
+                AppStrings.tr(language, 'member_wallets'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: members.map((m) {
+                  final isSelected = m.uid == _targetUid;
+                  final isMe = m.uid == widget.uid;
+                  final memberAmount = widget.activeBooklet?.getMemberWallet(m.uid) ?? 0.0;
+                  final label = '${isMe ? AppStrings.tr(language, "you") : shortName(m.name)} (₹${memberAmount.toStringAsFixed(0)})';
+                  return ChoiceChip(
+                    label: Text(label, style: const TextStyle(fontSize: 11)),
+                    selected: isSelected,
+                    onSelected: (val) {
+                      if (val) _switchMember(m.uid);
                     },
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+            ],
+
+            Text(
+              AppStrings.tr(language, 'wallet_desc'),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'wallet_amount'),
+                hintText: 'e.g. 2000 or 2k',
+                prefixText: '₹ ',
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [500, 1000, 1500, 2000, 3000, 5000, 10000].map((preset) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6.0),
+                    child: ActionChip(
+                      label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
+                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                      onPressed: () {
+                        _controller.text = preset.toString();
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+
+            if (widget.activeBooklet != null && totalWallet > 0) ...[
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.groups_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${AppStrings.tr(language, "combined_wallet")}: ${_currencyFormat.format(totalWallet)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
       actions: [
         TextButton(

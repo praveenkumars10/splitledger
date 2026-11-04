@@ -12,6 +12,9 @@ class BookletModel {
   final DateTime createdAt;
   final String? note;
 
+  /// Member-specific wallet amounts for this cashbook: { 'uid1': 2000.0, 'uid2': 2000.0 }
+  final Map<String, double> memberWallets;
+
   const BookletModel({
     required this.id,
     required this.name,
@@ -23,7 +26,28 @@ class BookletModel {
     required this.createdByName,
     required this.createdAt,
     this.note,
+    this.memberWallets = const {},
   });
+
+  /// Total combined wallet budget in this cashbook across all members
+  double get totalWalletAmount {
+    if (memberWallets.isNotEmpty) {
+      return memberWallets.values.fold(0.0, (acc, val) => acc + val);
+    }
+    return openingBalance;
+  }
+
+  /// Get a specific member's wallet amount for this cashbook
+  double getMemberWallet(String uid) {
+    if (memberWallets.containsKey(uid)) {
+      return memberWallets[uid]!;
+    }
+    // If only initial openingBalance was set and creator matches
+    if (uid == createdByUid && openingBalance > 0) {
+      return openingBalance;
+    }
+    return 0.0;
+  }
 
   Map<String, dynamic> toMap() {
     return {
@@ -36,6 +60,7 @@ class BookletModel {
       'createdByName': createdByName,
       'createdAt': Timestamp.fromDate(createdAt),
       'note': note,
+      'memberWallets': memberWallets,
     };
   }
 
@@ -53,6 +78,13 @@ class BookletModel {
       return null;
     }
 
+    Map<String, double> parseMemberWallets(dynamic val) {
+      if (val is Map) {
+        return val.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
+      }
+      return {};
+    }
+
     return BookletModel(
       id: id,
       name: map['name'] ?? 'General Cashbook',
@@ -64,6 +96,7 @@ class BookletModel {
       createdByName: map['createdByName'] ?? '',
       createdAt: parseDate(map['createdAt']),
       note: map['note'],
+      memberWallets: parseMemberWallets(map['memberWallets']),
     );
   }
 
@@ -79,10 +112,18 @@ class BookletModel {
       'createdByName': createdByName,
       'createdAt': createdAt.toIso8601String(),
       'note': note,
+      'memberWallets': memberWallets,
     };
   }
 
   factory BookletModel.fromJson(Map<String, dynamic> json) {
+    Map<String, double> parseMemberWallets(dynamic val) {
+      if (val is Map) {
+        return val.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
+      }
+      return {};
+    }
+
     return BookletModel(
       id: json['id'] ?? '',
       name: json['name'] ?? 'General Cashbook',
@@ -94,6 +135,7 @@ class BookletModel {
       createdByName: json['createdByName'] ?? '',
       createdAt: DateTime.tryParse(json['createdAt'] ?? '') ?? DateTime.now(),
       note: json['note'],
+      memberWallets: parseMemberWallets(json['memberWallets']),
     );
   }
 
@@ -108,6 +150,7 @@ class BookletModel {
     String? createdByName,
     DateTime? createdAt,
     String? note,
+    Map<String, double>? memberWallets,
   }) {
     return BookletModel(
       id: id ?? this.id,
@@ -120,7 +163,7 @@ class BookletModel {
       createdByName: createdByName ?? this.createdByName,
       createdAt: createdAt ?? this.createdAt,
       note: note ?? this.note,
+      memberWallets: memberWallets ?? this.memberWallets,
     );
   }
 }
-

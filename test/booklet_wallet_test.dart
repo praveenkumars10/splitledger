@@ -1,0 +1,184 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:split_ledger/models/booklet_model.dart';
+import 'package:split_ledger/models/transaction_model.dart';
+import 'package:split_ledger/core/date_filters.dart';
+
+void main() {
+  group('Cashbook-Specific Wallet & Combined Group Wallet Tests', () {
+    test('BookletModel stores and retrieves member wallets independently', () {
+      final bookletA = BookletModel(
+        id: 'booklet_main',
+        name: 'Main Cashbook',
+        startDate: DateTime(2026, 1, 1),
+        createdByUid: 'user_1',
+        createdByName: 'Praveen',
+        createdAt: DateTime(2026, 1, 1),
+        memberWallets: {
+          'user_1': 2000.0,
+          'user_2': 2000.0,
+        },
+      );
+
+      final bookletB = BookletModel(
+        id: 'booklet_trip',
+        name: 'Goa Trip',
+        startDate: DateTime(2026, 11, 1),
+        createdByUid: 'user_1',
+        createdByName: 'Praveen',
+        createdAt: DateTime(2026, 11, 1),
+        memberWallets: {
+          'user_1': 1000.0,
+          'user_2': 1500.0,
+        },
+      );
+
+      // Verify Booklet A values
+      expect(bookletA.getMemberWallet('user_1'), 2000.0);
+      expect(bookletA.getMemberWallet('user_2'), 2000.0);
+      expect(bookletA.totalWalletAmount, 4000.0);
+
+      // Verify Booklet B values are completely isolated and not overwritten
+      expect(bookletB.getMemberWallet('user_1'), 1000.0);
+      expect(bookletB.getMemberWallet('user_2'), 1500.0);
+      expect(bookletB.totalWalletAmount, 2500.0);
+
+      // Verify Booklet A remained unchanged
+      expect(bookletA.getMemberWallet('user_1'), 2000.0);
+    });
+
+    test('All view calculates combined wallet amount and group spend', () {
+      final booklet = BookletModel(
+        id: 'booklet_home',
+        name: 'Home Cashbook',
+        startDate: DateTime(2026, 1, 1),
+        createdByUid: 'user_1',
+        createdByName: 'Praveen',
+        createdAt: DateTime(2026, 1, 1),
+        memberWallets: {
+          'user_1': 2000.0,
+          'user_2': 2000.0,
+        },
+      );
+
+      final transactions = [
+        TransactionModel(
+          id: 'tx_1',
+          amount: 800.0,
+          category: 'Groceries',
+          paidByUid: 'user_1',
+          paidByName: 'Praveen',
+          date: DateTime(2026, 11, 2),
+          createdAt: DateTime(2026, 11, 2),
+          bookletId: 'booklet_home',
+        ),
+        TransactionModel(
+          id: 'tx_2',
+          amount: 700.0,
+          category: 'Dining',
+          paidByUid: 'user_2',
+          paidByName: 'Karthik',
+          date: DateTime(2026, 11, 3),
+          createdAt: DateTime(2026, 11, 3),
+          bookletId: 'booklet_home',
+        ),
+      ];
+
+      // 1. ALL transactions view
+      final allFiltered = filterTransactions(
+        transactions,
+        timeFilter: 'All',
+        userFilter: 'all',
+        currentUserId: 'user_1',
+      );
+      final totalPaidAll = allFiltered.fold(0.0, (sum, t) => sum + t.amount);
+      expect(totalPaidAll, 1500.0);
+
+      // Combined wallet is 2000 + 2000 = 4000
+      final totalWalletAll = booklet.totalWalletAmount;
+      expect(totalWalletAll, 4000.0);
+
+      // Remaining combined balance = 4000 - 1500 = 2500
+      final remainingBalanceAll = totalWalletAll - totalPaidAll;
+      expect(remainingBalanceAll, 2500.0);
+
+      // 2. User 1 ("Me") view
+      final user1Filtered = filterTransactions(
+        transactions,
+        timeFilter: 'All',
+        userFilter: 'me',
+        currentUserId: 'user_1',
+      );
+      final totalPaidUser1 = user1Filtered.fold(0.0, (sum, t) => sum + t.amount);
+      expect(totalPaidUser1, 800.0);
+
+      final walletUser1 = booklet.getMemberWallet('user_1');
+      expect(walletUser1, 2000.0);
+
+      final remainingBalanceUser1 = walletUser1 - totalPaidUser1;
+      expect(remainingBalanceUser1, 1200.0);
+
+      // 3. User 2 ("Partner") view
+      final user2Filtered = filterTransactions(
+        transactions,
+        timeFilter: 'All',
+        userFilter: 'user_2',
+        currentUserId: 'user_1',
+      );
+      final totalPaidUser2 = user2Filtered.fold(0.0, (sum, t) => sum + t.amount);
+      expect(totalPaidUser2, 700.0);
+
+      final walletUser2 = booklet.getMemberWallet('user_2');
+      expect(walletUser2, 2000.0);
+
+      final remainingBalanceUser2 = walletUser2 - totalPaidUser2;
+      expect(remainingBalanceUser2, 1300.0);
+
+      // Check sum of individual balances matches combined balance: 1200 + 1300 = 2500
+      expect(remainingBalanceUser1 + remainingBalanceUser2, remainingBalanceAll);
+    });
+
+    test('BookletModel toMap and fromMap serialization preserves memberWallets', () {
+      final booklet = BookletModel(
+        id: 'booklet_ser',
+        name: 'Office Project',
+        startDate: DateTime(2026, 11, 4),
+        createdByUid: 'u_1',
+        createdByName: 'Alice',
+        createdAt: DateTime(2026, 11, 4),
+        memberWallets: {
+          'u_1': 3500.0,
+          'u_2': 4200.0,
+          'u_3': 1000.0,
+        },
+      );
+
+      final map = booklet.toMap();
+      expect(map['memberWallets'], isA<Map<String, double>>());
+      expect(map['memberWallets']['u_1'], 3500.0);
+
+      final reconstructed = BookletModel.fromMap(map, 'booklet_ser');
+      expect(reconstructed.id, 'booklet_ser');
+      expect(reconstructed.memberWallets['u_1'], 3500.0);
+      expect(reconstructed.memberWallets['u_2'], 4200.0);
+      expect(reconstructed.memberWallets['u_3'], 1000.0);
+      expect(reconstructed.totalWalletAmount, 8700.0);
+    });
+
+    test('Fallback to openingBalance when memberWallets is empty', () {
+      final booklet = BookletModel(
+        id: 'booklet_legacy',
+        name: 'Old Booklet',
+        startDate: DateTime(2026, 5, 1),
+        createdByUid: 'creator_uid',
+        createdByName: 'Legacy User',
+        createdAt: DateTime(2026, 5, 1),
+        openingBalance: 1500.0,
+      );
+
+      expect(booklet.totalWalletAmount, 1500.0);
+      expect(booklet.getMemberWallet('creator_uid'), 1500.0);
+      expect(booklet.getMemberWallet('other_uid'), 0.0);
+    });
+  });
+}
+

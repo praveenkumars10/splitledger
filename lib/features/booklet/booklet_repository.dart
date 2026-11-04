@@ -140,6 +140,7 @@ class BookletRepository {
       createdByName: createdByName,
       createdAt: DateTime.now(),
       note: note,
+      memberWallets: openingBalance > 0 ? {createdByUid: openingBalance} : {},
     );
 
     final batch = _firestore.batch();
@@ -150,6 +151,36 @@ class BookletRepository {
     await batch.commit();
 
     return booklet;
+  }
+
+  Future<void> setMemberWallet({
+    required String householdId,
+    required String bookletId,
+    required String uid,
+    required double amount,
+  }) async {
+    final docRef = _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('booklets')
+        .doc(bookletId);
+
+    final snap = await docRef.get();
+    if (!snap.exists) {
+      await docRef.set({
+        'name': 'Main Cashbook',
+        'startDate': Timestamp.now(),
+        'createdByUid': uid,
+        'createdByName': 'Member',
+        'createdAt': Timestamp.now(),
+        'openingBalance': amount,
+        'memberWallets': {uid: amount},
+      });
+    } else {
+      await docRef.update({
+        'memberWallets.$uid': amount,
+      });
+    }
   }
 
   Future<void> setActiveBooklet(String householdId, String bookletId) async {

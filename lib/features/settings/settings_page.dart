@@ -19,6 +19,7 @@ import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
 import '../booklet/booklet_repository.dart';
 import '../booklet/widgets/booklet_selector_bar.dart';
+import '../../models/booklet_model.dart';
 import '../history/deleted_history_page.dart';
 import '../../core/constants/app_version.dart';
 
@@ -150,12 +151,20 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  void _showWalletDialog(BuildContext context, double currentAmount, String uid) {
+  void _showWalletDialog(
+    BuildContext context,
+    double currentAmount,
+    String uid, {
+    BookletModel? activeBooklet,
+    String? householdId,
+  }) {
     showDialog(
       context: context,
       builder: (context) => _SettingsWalletDialog(
         currentAmount: currentAmount,
         uid: uid,
+        activeBooklet: activeBooklet,
+        householdId: householdId,
       ),
     );
   }
@@ -454,15 +463,26 @@ class SettingsPage extends ConsumerWidget {
             leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
             title: Text(AppStrings.tr(language, 'wallet_balance')),
             subtitle: Text(
-              walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set'),
+              activeBooklet != null && activeBooklet.memberWallets.isNotEmpty
+                  ? '${activeBooklet.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? ''))}'
+                  : (walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set')),
               style: TextStyle(
-                fontWeight: walletAmount > 0 ? FontWeight.bold : FontWeight.normal,
+                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
+                    ? FontWeight.bold
+                    : FontWeight.normal,
               ),
             ),
             trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
             onTap: () {
               if (currentUser != null) {
-                _showWalletDialog(context, walletAmount, currentUser.uid);
+                final myAmount = activeBooklet?.getMemberWallet(currentUser.uid) ?? 0.0;
+                _showWalletDialog(
+                  context,
+                  myAmount > 0 ? myAmount : walletAmount,
+                  currentUser.uid,
+                  activeBooklet: activeBooklet,
+                  householdId: household?.id,
+                );
               }
             },
           ),
@@ -796,10 +816,14 @@ class SettingsPage extends ConsumerWidget {
 class _SettingsWalletDialog extends ConsumerStatefulWidget {
   final double currentAmount;
   final String uid;
+  final BookletModel? activeBooklet;
+  final String? householdId;
 
   const _SettingsWalletDialog({
     required this.currentAmount,
     required this.uid,
+    this.activeBooklet,
+    this.householdId,
   });
 
   @override
@@ -839,9 +863,15 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       try {
-        await ref.read(walletRepositoryProvider).setWalletAmount(widget.uid, parsed);
+        await ref.read(walletRepositoryProvider).setWalletAmount(
+              widget.uid,
+              parsed,
+              householdId: widget.householdId,
+              bookletId: widget.activeBooklet?.id,
+            );
+        final bookletName = widget.activeBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(
-          SnackBar(content: Text('${AppStrings.tr(language, 'wallet')}: ${_currencyFormat.format(parsed)}')),
+          SnackBar(content: Text('$bookletName: ${_currencyFormat.format(parsed)}')),
         );
       } catch (e) {
         messenger.showSnackBar(
