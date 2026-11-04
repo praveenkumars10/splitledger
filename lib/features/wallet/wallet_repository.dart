@@ -23,6 +23,26 @@ final currentWalletAmountProvider = StreamProvider<double>((ref) {
       });
 });
 
+/// Stream of user's booklet-specific wallets: { 'bookletId': amount, ... }
+final userBookletWalletsProvider = StreamProvider<Map<String, double>>((ref) {
+  final user = ref.watch(authStateChangesProvider).asData?.value;
+  if (user == null) return Stream.value({});
+
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(user.uid)
+      .snapshots()
+      .map((snapshot) {
+        if (!snapshot.exists) return {};
+        final data = snapshot.data();
+        final raw = data?['bookletWallets'];
+        if (raw is Map) {
+          return raw.map((k, v) => MapEntry(k.toString(), (v as num).toDouble()));
+        }
+        return {};
+      });
+});
+
 class WalletRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
@@ -42,6 +62,13 @@ class WalletRepository {
 
       try {
         final snap = await bookletRef.get();
+        final existingData = snap.data() ?? {};
+        final rawWallets = existingData['memberWallets'];
+        final Map<String, dynamic> wallets = rawWallets is Map
+            ? Map<String, dynamic>.from(rawWallets)
+            : {};
+        wallets[uid] = amount;
+
         if (!snap.exists) {
           await bookletRef.set({
             'name': 'Main Cashbook',
@@ -50,24 +77,31 @@ class WalletRepository {
             'createdByName': 'Member',
             'createdAt': Timestamp.now(),
             'openingBalance': amount,
-            'memberWallets': {uid: amount},
+            'memberWallets': wallets,
           });
         } else {
-          await bookletRef.update({
-            'memberWallets.$uid': amount,
-          });
+          await bookletRef.set({
+            'memberWallets': wallets,
+          }, SetOptions(merge: true));
         }
       } catch (e) {
         // ignore: avoid_print
-        print('Error updating booklet wallet: $e');
+        print('Error updating booklet wallet in bookletRef: $e');
       }
-    }
 
-    // 2. Also save to user doc as global fallback and per-booklet store
-    await _firestore.collection('users').doc(uid).set({
-      'walletAmount': amount,
-      if (bookletId != null) 'bookletWallets.$bookletId': amount,
-      'walletUpdatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      // 2. Save under user doc specifically for this booklet (isolated per booklet)
+      await _firestore.collection('users').doc(uid).set({
+        'bookletWallets': {
+          bookletId: amount,
+        },
+        'walletUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } else {
+      // 3. Fallback/standalone global wallet
+      await _firestore.collection('users').doc(uid).set({
+        'walletAmount': amount,
+        'walletUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
   }
 }

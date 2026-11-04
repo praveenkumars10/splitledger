@@ -158,6 +158,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final activeBooklet = ref.watch(activeBookletProvider);
+    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+    final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
@@ -194,26 +196,29 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
               title: Text(AppStrings.tr(language, 'wallet')),
               subtitle: Text(
-                activeBooklet != null && activeBooklet.memberWallets.isNotEmpty
-                    ? '${activeBooklet.name}: ${_currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? ''))}'
-                    : (walletAmount > 0
-                        ? _currencyFormat.format(walletAmount)
-                        : AppStrings.tr(language, 'wallet_not_set')),
+                activeBooklet != null
+                    ? (activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) > 0
+                        ? '${activeBooklet.name}: ${_currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
+                        : '${activeBooklet.name}: ${AppStrings.tr(language, 'wallet_not_set')}')
+                    : (allBooklets.isNotEmpty
+                        ? 'Total: ${_currencyFormat.format(allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets)))}'
+                        : (walletAmount > 0
+                            ? _currencyFormat.format(walletAmount)
+                            : AppStrings.tr(language, 'wallet_not_set'))),
                 style: TextStyle(
-                  color: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
+                  color: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0 || (activeBooklet == null && allBooklets.isNotEmpty)
                       ? Theme.of(context).colorScheme.onSurface
                       : onSurfaceVariant,
-                  fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
-                      ? FontWeight.bold
-                      : FontWeight.normal,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
               trailing: const Icon(Icons.edit, size: 20),
               onTap: () {
                 Navigator.pop(context);
                 if (currentUser != null) {
+                  final initialAmt = activeBooklet?.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets) ?? 0.0;
                   _showWalletDialog(
-                    currentAmount: activeBooklet?.getMemberWallet(currentUser.uid) ?? walletAmount,
+                    currentAmount: initialAmt,
                     uid: currentUser.uid,
                     activeBooklet: activeBooklet,
                     selectedUserFilter: _selectedUserFilter,
@@ -663,37 +668,80 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           final double displayedWalletAmount;
           final String walletCardTitle;
 
-          if (activeBooklet != null && activeBooklet.memberWallets.isNotEmpty) {
+          if (activeBooklet != null) {
+            // SPECIFIC BOOKLET SELECTED: Read ONLY this booklet's wallets
             if (isAllUsers) {
-              // ALL Transactions: Combine all members' wallets for this cashbook (e.g. 2000 + 2000 = 4000)
-              displayedWalletAmount = activeBooklet.totalWalletAmount;
+              displayedWalletAmount = activeBooklet.getTotalWalletAmount(
+                userBookletWallets: userBookletWallets,
+                currentUid: currentUser.uid,
+              );
               walletCardTitle = AppStrings.tr(language, 'total_wallet');
             } else if (_selectedUserFilter == 'me') {
-              // Current user's individual wallet in this cashbook
-              displayedWalletAmount = activeBooklet.getMemberWallet(currentUser.uid);
+              displayedWalletAmount = activeBooklet.getMemberWallet(
+                currentUser.uid,
+                userBookletWallets: userBookletWallets,
+              );
               walletCardTitle = AppStrings.tr(language, 'your_wallet');
             } else if (_selectedUserFilter == 'group' && partner != null) {
-              // Partner's individual wallet in 2-member household
-              displayedWalletAmount = activeBooklet.getMemberWallet(partner.uid);
+              displayedWalletAmount = activeBooklet.getMemberWallet(
+                partner.uid,
+                userBookletWallets: userBookletWallets,
+              );
               walletCardTitle = "${shortName(partner.name)}'s ${AppStrings.tr(language, 'wallet')}";
             } else {
-              // Specific member UID filter
-              displayedWalletAmount = activeBooklet.getMemberWallet(_selectedUserFilter);
+              displayedWalletAmount = activeBooklet.getMemberWallet(
+                _selectedUserFilter,
+                userBookletWallets: userBookletWallets,
+              );
               final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull;
               final name = shortName(member?.name ?? 'Member');
               walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
             }
           } else {
-            // Fallback for cashbooks where openingBalance was recorded or user profile wallet
-            final bOpening = activeBooklet?.openingBalance ?? 0.0;
-            if (isAllUsers && bOpening > 0) {
-              displayedWalletAmount = bOpening;
-              walletCardTitle = AppStrings.tr(language, 'total_wallet');
-            } else if (!isAllUsers && bOpening > 0 && currentUser.uid == activeBooklet?.createdByUid) {
-              displayedWalletAmount = bOpening;
-              walletCardTitle = AppStrings.tr(language, 'your_wallet');
+            // 'ALL' BOOKLETS VIEW: Combine all booklets' wallets for the selected user/group
+            if (allBooklets.isNotEmpty) {
+              if (isAllUsers) {
+                displayedWalletAmount = allBooklets.fold(
+                  0.0,
+                  (acc, b) => acc + b.getTotalWalletAmount(
+                    userBookletWallets: userBookletWallets,
+                    currentUid: currentUser.uid,
+                  ),
+                );
+                walletCardTitle = AppStrings.tr(language, 'total_wallet');
+              } else if (_selectedUserFilter == 'me') {
+                displayedWalletAmount = allBooklets.fold(
+                  0.0,
+                  (acc, b) => acc + b.getMemberWallet(
+                    currentUser.uid,
+                    userBookletWallets: userBookletWallets,
+                  ),
+                );
+                walletCardTitle = AppStrings.tr(language, 'your_wallet');
+              } else if (_selectedUserFilter == 'group' && partner != null) {
+                final partnerUid = partner.uid;
+                displayedWalletAmount = allBooklets.fold(
+                  0.0,
+                  (acc, b) => acc + b.getMemberWallet(
+                    partnerUid,
+                    userBookletWallets: userBookletWallets,
+                  ),
+                );
+                walletCardTitle = "${shortName(partner.name)}'s ${AppStrings.tr(language, 'wallet')}";
+              } else {
+                displayedWalletAmount = allBooklets.fold(
+                  0.0,
+                  (acc, b) => acc + b.getMemberWallet(
+                    _selectedUserFilter,
+                    userBookletWallets: userBookletWallets,
+                  ),
+                );
+                final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull;
+                final name = shortName(member?.name ?? 'Member');
+                walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
+              }
             } else {
-              displayedWalletAmount = walletAmount;
+              displayedWalletAmount = 0.0;
               walletCardTitle = isAllUsers
                   ? AppStrings.tr(language, 'total_wallet')
                   : AppStrings.tr(language, 'wallet');
@@ -1281,6 +1329,7 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
   late final TextEditingController _controller;
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   late String _targetUid;
+  String? _selectedBookletId;
 
   @override
   void initState() {
@@ -1291,6 +1340,8 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
     } else {
       _targetUid = widget.uid;
     }
+
+    _selectedBookletId = widget.activeBooklet?.id;
 
     final initialAmount = widget.activeBooklet?.getMemberWallet(_targetUid) ?? widget.currentAmount;
     _controller = TextEditingController(
@@ -1304,16 +1355,16 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
     super.dispose();
   }
 
-  void _switchMember(String newUid) {
+  void _switchMember(String newUid, BookletModel? booklet, Map<String, double> userBookletWallets) {
     if (_targetUid == newUid) return;
     setState(() {
       _targetUid = newUid;
-      final val = widget.activeBooklet?.getMemberWallet(newUid) ?? 0.0;
+      final val = booklet?.getMemberWallet(newUid, userBookletWallets: userBookletWallets) ?? 0.0;
       _controller.text = val > 0 ? val.toStringAsFixed(0) : '';
     });
   }
 
-  Future<void> _handleSave() async {
+  Future<void> _handleSave(BookletModel? currentBooklet) async {
     final language = ref.read(languageControllerProvider);
     final raw = _controller.text.trim().toLowerCase();
     double? parsed;
@@ -1333,9 +1384,9 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
               _targetUid,
               parsed,
               householdId: widget.householdId,
-              bookletId: widget.activeBooklet?.id,
+              bookletId: _selectedBookletId,
             );
-        final bookletName = widget.activeBooklet?.name ?? AppStrings.tr(language, 'wallet');
+        final bookletName = currentBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(
           SnackBar(
             content: Text('$bookletName: ${_currencyFormat.format(parsed)}'),
@@ -1358,8 +1409,21 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
     final language = ref.watch(languageControllerProvider);
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final members = household?.members ?? [];
-    final bookletName = widget.activeBooklet?.name ?? 'Main Cashbook';
-    final totalWallet = widget.activeBooklet?.totalWalletAmount ?? 0.0;
+    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+    final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
+
+    BookletModel? currentBooklet;
+    if (_selectedBookletId != null) {
+      currentBooklet = allBooklets.where((b) => b.id == _selectedBookletId).firstOrNull;
+    }
+    currentBooklet ??= widget.activeBooklet ?? (allBooklets.isNotEmpty ? allBooklets.first : null);
+    _selectedBookletId ??= currentBooklet?.id;
+
+    final bookletName = currentBooklet?.name ?? 'Main Cashbook';
+    final totalWallet = currentBooklet?.getTotalWalletAmount(
+      userBookletWallets: userBookletWallets,
+      currentUid: widget.uid,
+    ) ?? 0.0;
 
     return AlertDialog(
       title: Row(
@@ -1368,7 +1432,7 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              widget.activeBooklet != null
+              currentBooklet != null
                   ? '$bookletName Wallet'
                   : AppStrings.tr(language, 'wallet_amount'),
               overflow: TextOverflow.ellipsis,
@@ -1381,7 +1445,39 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (widget.activeBooklet != null)
+            if (allBooklets.length > 1) ...[
+              Text(
+                AppStrings.tr(language, 'booklet'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: allBooklets.map((b) {
+                    final isSel = b.id == _selectedBookletId;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: ChoiceChip(
+                        avatar: Icon(Icons.menu_book_rounded, size: 14, color: isSel ? Colors.white : Colors.blue),
+                        label: Text(b.name, style: const TextStyle(fontSize: 12)),
+                        selected: isSel,
+                        onSelected: (val) {
+                          if (val) {
+                            setState(() {
+                              _selectedBookletId = b.id;
+                              final amt = b.getMemberWallet(_targetUid, userBookletWallets: userBookletWallets);
+                              _controller.text = amt > 0 ? amt.toStringAsFixed(0) : '';
+                            });
+                          }
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ] else if (currentBooklet != null) ...[
               Container(
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -1404,6 +1500,7 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
                   ],
                 ),
               ),
+            ],
 
             if (members.length > 1) ...[
               Text(
@@ -1417,13 +1514,13 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
                 children: members.map((m) {
                   final isSelected = m.uid == _targetUid;
                   final isMe = m.uid == widget.uid;
-                  final memberAmount = widget.activeBooklet?.getMemberWallet(m.uid) ?? 0.0;
+                  final memberAmount = currentBooklet?.getMemberWallet(m.uid, userBookletWallets: userBookletWallets) ?? 0.0;
                   final label = '${isMe ? AppStrings.tr(language, "you") : shortName(m.name)} (₹${memberAmount.toStringAsFixed(0)})';
                   return ChoiceChip(
                     label: Text(label, style: const TextStyle(fontSize: 11)),
                     selected: isSelected,
                     onSelected: (val) {
-                      if (val) _switchMember(m.uid);
+                      if (val) _switchMember(m.uid, currentBooklet, userBookletWallets);
                     },
                   );
                 }).toList(),
@@ -1467,7 +1564,7 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
               ),
             ),
 
-            if (widget.activeBooklet != null && totalWallet > 0) ...[
+            if (currentBooklet != null && totalWallet > 0) ...[
               const SizedBox(height: 14),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -1502,7 +1599,7 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
           child: Text(AppStrings.tr(language, 'cancel')),
         ),
         FilledButton(
-          onPressed: _handleSave,
+          onPressed: () => _handleSave(currentBooklet),
           child: Text(AppStrings.tr(language, 'save')),
         ),
       ],

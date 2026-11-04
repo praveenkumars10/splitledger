@@ -184,6 +184,8 @@ class SettingsPage extends ConsumerWidget {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
+    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+    final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
     final transactions = ref.watch(currentTransactionsProvider).asData?.value ?? [];
     final themeSettings = ref.watch(themeControllerProvider);
     final language = ref.watch(languageControllerProvider);
@@ -463,11 +465,15 @@ class SettingsPage extends ConsumerWidget {
             leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
             title: Text(AppStrings.tr(language, 'wallet_balance')),
             subtitle: Text(
-              activeBooklet != null && activeBooklet.memberWallets.isNotEmpty
-                  ? '${activeBooklet.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? ''))}'
-                  : (walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set')),
+              activeBooklet != null
+                  ? (activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) > 0
+                      ? '${activeBooklet.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
+                      : '${activeBooklet.name}: ${AppStrings.tr(language, 'wallet_not_set')}')
+                  : (allBooklets.isNotEmpty
+                      ? 'Total: ${currencyFormat.format(allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets)))}'
+                      : (walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set'))),
               style: TextStyle(
-                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '') ?? walletAmount) > 0
+                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0 || (activeBooklet == null && allBooklets.isNotEmpty)
                     ? FontWeight.bold
                     : FontWeight.normal,
               ),
@@ -475,10 +481,10 @@ class SettingsPage extends ConsumerWidget {
             trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
             onTap: () {
               if (currentUser != null) {
-                final myAmount = activeBooklet?.getMemberWallet(currentUser.uid) ?? 0.0;
+                final myAmount = activeBooklet?.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets) ?? 0.0;
                 _showWalletDialog(
                   context,
-                  myAmount > 0 ? myAmount : walletAmount,
+                  myAmount,
                   currentUser.uid,
                   activeBooklet: activeBooklet,
                   householdId: household?.id,
@@ -833,10 +839,12 @@ class _SettingsWalletDialog extends ConsumerStatefulWidget {
 class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
   late final TextEditingController _controller;
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
+  String? _selectedBookletId;
 
   @override
   void initState() {
     super.initState();
+    _selectedBookletId = widget.activeBooklet?.id;
     _controller = TextEditingController(
       text: widget.currentAmount > 0 ? widget.currentAmount.toStringAsFixed(0) : '',
     );
@@ -848,7 +856,7 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
     super.dispose();
   }
 
-  Future<void> _handleSave() async {
+  Future<void> _handleSave(BookletModel? currentBooklet) async {
     final language = ref.read(languageControllerProvider);
     final raw = _controller.text.trim().toLowerCase();
     double? parsed;
@@ -867,9 +875,9 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
               widget.uid,
               parsed,
               householdId: widget.householdId,
-              bookletId: widget.activeBooklet?.id,
+              bookletId: _selectedBookletId,
             );
-        final bookletName = widget.activeBooklet?.name ?? AppStrings.tr(language, 'wallet');
+        final bookletName = currentBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(
           SnackBar(content: Text('$bookletName: ${_currencyFormat.format(parsed)}')),
         );
@@ -888,55 +896,131 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
   @override
   Widget build(BuildContext context) {
     final language = ref.watch(languageControllerProvider);
+    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+    final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
+
+    BookletModel? currentBooklet;
+    if (_selectedBookletId != null) {
+      currentBooklet = allBooklets.where((b) => b.id == _selectedBookletId).firstOrNull;
+    }
+    currentBooklet ??= widget.activeBooklet ?? (allBooklets.isNotEmpty ? allBooklets.first : null);
+    _selectedBookletId ??= currentBooklet?.id;
+    final bookletName = currentBooklet?.name ?? 'Main Cashbook';
 
     return AlertDialog(
       title: Row(
         children: [
           Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
           const SizedBox(width: 8),
-          Text(AppStrings.tr(language, 'wallet_amount')),
+          Expanded(
+            child: Text(
+              currentBooklet != null
+                  ? '$bookletName ${AppStrings.tr(language, 'wallet')}'
+                  : AppStrings.tr(language, 'wallet_amount'),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         ],
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            AppStrings.tr(language, 'wallet_desc'),
-            style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _controller,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            autofocus: true,
-            decoration: InputDecoration(
-              labelText: AppStrings.tr(language, 'wallet_amount'),
-              hintText: 'e.g. 2000',
-              prefixText: '₹ ',
-              border: const OutlineInputBorder(),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (allBooklets.length > 1) ...[
+              Text(
+                AppStrings.tr(language, 'booklet'),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 6),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: allBooklets.map((b) {
+                    final isSel = b.id == _selectedBookletId;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 6.0),
+                      child: ChoiceChip(
+                        avatar: Icon(Icons.menu_book_rounded, size: 14, color: isSel ? Colors.white : Colors.blue),
+                        label: Text(b.name, style: const TextStyle(fontSize: 12)),
+                        selected: isSel,
+                        onSelected: (val) {
+                          if (val) {
+                            setState(() {
+                              _selectedBookletId = b.id;
+                              final amt = b.getMemberWallet(widget.uid, userBookletWallets: userBookletWallets);
+                              _controller.text = amt > 0 ? amt.toStringAsFixed(0) : '';
+                            });
+                          }
+                        },
+                      ),
+                    );
+                  }).toList(),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ] else if (currentBooklet != null) ...[
+              Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.menu_book_rounded, size: 14, color: Colors.blueAccent),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Cashbook: $bookletName',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueAccent),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
+            Text(
+              AppStrings.tr(language, 'wallet_desc'),
+              style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),
             ),
-          ),
-          const SizedBox(height: 12),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
-                return Padding(
-                  padding: const EdgeInsets.only(right: 6.0),
-                  child: ActionChip(
-                    label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
-                    backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
-                    side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
-                    onPressed: () {
-                      _controller.text = preset.toString();
-                    },
-                  ),
-                );
-              }).toList(),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: AppStrings.tr(language, 'wallet_amount'),
+                hintText: 'e.g. 2000',
+                prefixText: '₹ ',
+                border: const OutlineInputBorder(),
+              ),
             ),
-          ),
-        ],
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [10, 20, 30, 50, 70, 100, 200, 500, 1000, 2000, 5000].map((preset) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6.0),
+                    child: ActionChip(
+                      label: Text('₹$preset', style: const TextStyle(fontSize: 12)),
+                      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+                      side: BorderSide(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.3)),
+                      onPressed: () {
+                        _controller.text = preset.toString();
+                      },
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -944,7 +1028,7 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
           child: Text(AppStrings.tr(language, 'cancel')),
         ),
         FilledButton(
-          onPressed: _handleSave,
+          onPressed: () => _handleSave(currentBooklet),
           child: Text(AppStrings.tr(language, 'save')),
         ),
       ],

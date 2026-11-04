@@ -179,6 +179,72 @@ void main() {
       expect(booklet.getMemberWallet('creator_uid'), 1500.0);
       expect(booklet.getMemberWallet('other_uid'), 0.0);
     });
+
+    test('Booklet wallet isolation across multiple booklets and aggregation in ALL view', () {
+      final booklet1 = BookletModel(
+        id: 'bk_1',
+        name: 'Household Cashbook',
+        startDate: DateTime(2026, 1, 1),
+        createdByUid: 'user_1',
+        createdByName: 'User 1',
+        createdAt: DateTime(2026, 1, 1),
+        memberWallets: {
+          'user_1': 2000.0,
+          'user_2': 2000.0,
+        },
+      );
+
+      final booklet2 = BookletModel(
+        id: 'bk_2',
+        name: 'Trip Cashbook',
+        startDate: DateTime(2026, 11, 1),
+        createdByUid: 'user_1',
+        createdByName: 'User 1',
+        createdAt: DateTime(2026, 11, 1),
+        memberWallets: {
+          'user_1': 1000.0,
+          'user_2': 1000.0,
+        },
+      );
+
+      final allBooklets = [booklet1, booklet2];
+
+      // In Booklet 1: user_1 wallet is 2000, total is 4000
+      expect(booklet1.getMemberWallet('user_1'), 2000.0);
+      expect(booklet1.totalWalletAmount, 4000.0);
+
+      // In Booklet 2: user_1 wallet is 1000, total is 2000 (NOT changed to 2000)
+      expect(booklet2.getMemberWallet('user_1'), 1000.0);
+      expect(booklet2.totalWalletAmount, 2000.0);
+
+      // In ALL view:
+      // user_1 wallet across all booklets = 2000 + 1000 = 3000
+      final allUser1Wallet = allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet('user_1'));
+      expect(allUser1Wallet, 3000.0);
+
+      // Total combined wallet across all booklets = 4000 + 2000 = 6000
+      final allTotalWallet = allBooklets.fold(0.0, (acc, b) => acc + b.totalWalletAmount);
+      expect(allTotalWallet, 6000.0);
+    });
+
+    test('User bookletWallets map fallback functions properly', () {
+      final booklet = BookletModel(
+        id: 'bk_new',
+        name: 'Newly Created Cashbook',
+        startDate: DateTime(2026, 11, 4),
+        createdByUid: 'user_1',
+        createdByName: 'User 1',
+        createdAt: DateTime(2026, 11, 4),
+        memberWallets: {}, // doc not yet updated
+      );
+
+      final userBookletWallets = {
+        'bk_new': 1250.0,
+      };
+
+      expect(booklet.getMemberWallet('user_1', userBookletWallets: userBookletWallets), 1250.0);
+      expect(booklet.getTotalWalletAmount(userBookletWallets: userBookletWallets, currentUid: 'user_1'), 1250.0);
+    });
   });
 }
 

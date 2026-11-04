@@ -30,19 +30,27 @@ class BookletModel {
   });
 
   /// Total combined wallet budget in this cashbook across all members
-  double get totalWalletAmount {
+  double getTotalWalletAmount({Map<String, double>? userBookletWallets, String? currentUid}) {
     if (memberWallets.isNotEmpty) {
       return memberWallets.values.fold(0.0, (acc, val) => acc + val);
+    }
+    if (currentUid != null && userBookletWallets != null && userBookletWallets.containsKey(id)) {
+      return userBookletWallets[id]!;
     }
     return openingBalance;
   }
 
+  /// Total combined wallet budget in this cashbook across all members (getter)
+  double get totalWalletAmount => getTotalWalletAmount();
+
   /// Get a specific member's wallet amount for this cashbook
-  double getMemberWallet(String uid) {
+  double getMemberWallet(String uid, {Map<String, double>? userBookletWallets}) {
     if (memberWallets.containsKey(uid)) {
       return memberWallets[uid]!;
     }
-    // If only initial openingBalance was set and creator matches
+    if (userBookletWallets != null && userBookletWallets.containsKey(id)) {
+      return userBookletWallets[id]!;
+    }
     if (uid == createdByUid && openingBalance > 0) {
       return openingBalance;
     }

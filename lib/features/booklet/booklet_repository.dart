@@ -150,6 +150,17 @@ class BookletRepository {
     });
     await batch.commit();
 
+    if (openingBalance > 0 && createdByUid.isNotEmpty) {
+      try {
+        await _firestore.collection('users').doc(createdByUid).set({
+          'bookletWallets': {
+            booklet.id: openingBalance,
+          },
+          'walletUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+    }
+
     return booklet;
   }
 
@@ -165,22 +176,43 @@ class BookletRepository {
         .collection('booklets')
         .doc(bookletId);
 
-    final snap = await docRef.get();
-    if (!snap.exists) {
-      await docRef.set({
-        'name': 'Main Cashbook',
-        'startDate': Timestamp.now(),
-        'createdByUid': uid,
-        'createdByName': 'Member',
-        'createdAt': Timestamp.now(),
-        'openingBalance': amount,
-        'memberWallets': {uid: amount},
-      });
-    } else {
-      await docRef.update({
-        'memberWallets.$uid': amount,
-      });
+    try {
+      final snap = await docRef.get();
+      final existingData = snap.data() ?? {};
+      final rawWallets = existingData['memberWallets'];
+      final Map<String, dynamic> wallets = rawWallets is Map
+          ? Map<String, dynamic>.from(rawWallets)
+          : {};
+      wallets[uid] = amount;
+
+      if (!snap.exists) {
+        await docRef.set({
+          'name': 'Main Cashbook',
+          'startDate': Timestamp.now(),
+          'createdByUid': uid,
+          'createdByName': 'Member',
+          'createdAt': Timestamp.now(),
+          'openingBalance': amount,
+          'memberWallets': wallets,
+        });
+      } else {
+        await docRef.set({
+          'memberWallets': wallets,
+        }, SetOptions(merge: true));
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Error updating booklet memberWallets: $e');
     }
+
+    try {
+      await _firestore.collection('users').doc(uid).set({
+        'bookletWallets': {
+          bookletId: amount,
+        },
+        'walletUpdatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    } catch (_) {}
   }
 
   Future<void> setActiveBooklet(String householdId, String bookletId) async {
