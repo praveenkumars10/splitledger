@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../../../core/localization/app_strings.dart';
 import '../../../core/localization/language_controller.dart';
 import '../../../core/preferences/app_preferences.dart';
+import '../../../models/booklet_model.dart';
 import '../../auth/auth_controller.dart';
 import '../../household/current_household_provider.dart';
 import '../booklet_repository.dart';
@@ -245,9 +246,74 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                               '${booklet.endDate != null ? ' • Closed ${dateFormat.format(booklet.endDate!)}' : ''}',
                               style: const TextStyle(fontSize: 11),
                             ),
-                            trailing: isSelected
-                                ? const Icon(Icons.check_circle, color: Colors.green)
-                                : const Icon(Icons.chevron_right, size: 18),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isSelected)
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 2),
+                                    child: Icon(Icons.check_circle, color: Colors.green, size: 20),
+                                  ),
+                                PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert, size: 20),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  tooltip: 'Options',
+                                  onSelected: (action) async {
+                                    if (action == 'toggle_close') {
+                                      final household = ref.read(currentHouseholdProvider).asData?.value;
+                                      if (household != null) {
+                                        if (booklet.isClosed) {
+                                          await ref.read(bookletRepositoryProvider).reopenBooklet(household.id, booklet.id);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(AppStrings.tr(language, 'booklet_reopened'))),
+                                            );
+                                          }
+                                        } else {
+                                          await ref.read(bookletRepositoryProvider).closeBooklet(household.id, booklet.id);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(content: Text(AppStrings.tr(language, 'booklet_closed'))),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    } else if (action == 'delete') {
+                                      await _showDeleteBookletDialog(context, ref, booklet);
+                                    }
+                                  },
+                                  itemBuilder: (ctx) => [
+                                    PopupMenuItem(
+                                      value: 'toggle_close',
+                                      child: Row(
+                                        children: [
+                                          Icon(booklet.isClosed ? Icons.lock_open : Icons.lock_outline, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            booklet.isClosed
+                                                ? AppStrings.tr(language, 'reopen_booklet')
+                                                : AppStrings.tr(language, 'close_booklet'),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    PopupMenuItem(
+                                      value: 'delete',
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            AppStrings.tr(language, 'delete_booklet'),
+                                            style: const TextStyle(color: Colors.red),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
                             onTap: () async {
                               final household = ref.read(currentHouseholdProvider).asData?.value;
                               ref.read(selectedBookletFilterProvider.notifier).setFilter(booklet.id);
@@ -294,6 +360,116 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+Future<void> _showDeleteBookletDialog(
+  BuildContext context,
+  WidgetRef ref,
+  BookletModel booklet,
+) async {
+  final language = ref.read(languageControllerProvider);
+  bool deleteTransactions = true;
+
+  await showDialog<void>(
+    context: context,
+    builder: (dialogCtx) => StatefulBuilder(
+      builder: (context, setDialogState) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_outline, color: Colors.red),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                AppStrings.tr(language, 'delete_booklet'),
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${AppStrings.tr(language, 'delete_booklet_confirm')} "${booklet.name}"?',
+              style: const TextStyle(fontSize: 14),
+            ),
+            const SizedBox(height: 16),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              value: deleteTransactions,
+              activeColor: Colors.red,
+              title: Text(
+                AppStrings.tr(language, 'delete_booklet_tx_opt'),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                deleteTransactions
+                    ? 'All transactions belonging to this cashbook will also be deleted.'
+                    : 'Transactions will be preserved in general history.',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+              onChanged: (val) {
+                setDialogState(() {
+                  deleteTransactions = val ?? true;
+                });
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: Text(AppStrings.tr(language, 'cancel')),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final household = ref.read(currentHouseholdProvider).asData?.value;
+              if (household != null) {
+                if (ref.read(selectedBookletFilterProvider) == booklet.id) {
+                  ref.read(selectedBookletFilterProvider.notifier).setFilter(null);
+                }
+                if (ref.read(appPreferencesProvider).activeBookletId == booklet.id) {
+                  await ref.read(appPreferencesProvider.notifier).setActiveBookletId(null);
+                }
+
+                await ref.read(bookletRepositoryProvider).deleteBooklet(
+                      householdId: household.id,
+                      bookletId: booklet.id,
+                      deleteAssociatedTransactions: deleteTransactions,
+                    );
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        '${AppStrings.tr(language, 'booklet_deleted')}: "${booklet.name}"',
+                      ),
+                      backgroundColor: Colors.red.shade700,
+                    ),
+                  );
+                }
+              }
+            },
+            child: Text(AppStrings.tr(language, 'delete')),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 Future<void> showCreateBookletDialog(BuildContext context) {

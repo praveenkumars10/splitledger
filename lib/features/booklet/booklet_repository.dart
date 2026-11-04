@@ -181,12 +181,72 @@ class BookletRepository {
     });
   }
 
-  Future<void> deleteBooklet(String householdId, String bookletId) async {
-    await _firestore
+  Future<void> deleteBooklet({
+    required String householdId,
+    required String bookletId,
+    bool deleteAssociatedTransactions = true,
+  }) async {
+    final bookletDoc = _firestore
         .collection('households')
         .doc(householdId)
         .collection('booklets')
-        .doc(bookletId)
-        .delete();
+        .doc(bookletId);
+
+    // 1. Gather all transactions in this booklet
+    final txSnapshot = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('transactions')
+        .where('bookletId', isEqualTo: bookletId)
+        .get();
+
+    final List<DocumentReference> toDelete = [bookletDoc];
+    final List<DocumentReference> toUntag = [];
+
+    for (final doc in txSnapshot.docs) {
+      if (deleteAssociatedTransactions) {
+        toDelete.add(doc.reference);
+      } else {
+        toUntag.add(doc.reference);
+      }
+    }
+
+    // 2. Commit in batches of up to 400 operations
+    WriteBatch batch = _firestore.batch();
+    int opCount = 0;
+
+    // Clear household activeBookletId if it points to the deleted booklet
+    final householdRef = _firestore.collection('households').doc(householdId);
+    try {
+      final householdDoc = await householdRef.get();
+      if (householdDoc.data()?['activeBookletId'] == bookletId) {
+        batch.update(householdRef, {'activeBookletId': null});
+        opCount++;
+      }
+    } catch (_) {}
+
+    for (final ref in toDelete) {
+      batch.delete(ref);
+      opCount++;
+      if (opCount >= 400) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
+    }
+
+    for (final ref in toUntag) {
+      batch.update(ref, {'bookletId': null});
+      opCount++;
+      if (opCount >= 400) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
+    }
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
   }
 }

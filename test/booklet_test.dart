@@ -143,6 +143,95 @@ void main() {
       expect(defaultCashbookExpenses.length, 1);
       expect(defaultCashbookExpenses.first.amount, 200.0);
     });
+
+    test('Multiple members in the same household can add transactions to the same booklet', () {
+      final user1Tx = TransactionModel(
+        id: 'tx_1',
+        amount: 500.0,
+        category: 'fuel',
+        paidByUid: 'uid_praveen',
+        paidByName: 'Praveen',
+        date: DateTime(2026, 11, 1),
+        createdAt: DateTime(2026, 11, 1),
+        bookletId: 'booklet_trip',
+      );
+
+      final user2Tx = TransactionModel(
+        id: 'tx_2',
+        amount: 1500.0,
+        category: 'hotel',
+        paidByUid: 'uid_friend',
+        paidByName: 'Friend',
+        date: DateTime(2026, 11, 1),
+        createdAt: DateTime(2026, 11, 1),
+        bookletId: 'booklet_trip',
+      );
+
+      final householdTxList = [user1Tx, user2Tx];
+
+      // Both entries belong to 'booklet_trip' and are visible to both users
+      final tripExpenses = householdTxList.where((t) => t.bookletId == 'booklet_trip').toList();
+      expect(tripExpenses.length, 2);
+      expect(tripExpenses.any((t) => t.paidByUid == 'uid_praveen'), isTrue);
+      expect(tripExpenses.any((t) => t.paidByUid == 'uid_friend'), isTrue);
+      expect(tripExpenses.fold(0.0, (s, t) => s + t.amount), 2000.0);
+    });
+
+    test('Simulate booklet deletion with and without associated transactions', () {
+      final tx1 = TransactionModel(
+        id: 'tx_1',
+        amount: 300.0,
+        category: 'groceries',
+        paidByUid: 'u1',
+        paidByName: 'User 1',
+        date: DateTime(2026, 11, 2),
+        createdAt: DateTime(2026, 11, 2),
+        bookletId: 'booklet_to_delete',
+      );
+
+      final tx2 = TransactionModel(
+        id: 'tx_2',
+        amount: 700.0,
+        category: 'dinner',
+        paidByUid: 'u2',
+        paidByName: 'User 2',
+        date: DateTime(2026, 11, 2),
+        createdAt: DateTime(2026, 11, 2),
+        bookletId: 'booklet_to_delete',
+      );
+
+      final otherTx = TransactionModel(
+        id: 'tx_3',
+        amount: 150.0,
+        category: 'coffee',
+        paidByUid: 'u1',
+        paidByName: 'User 1',
+        date: DateTime(2026, 11, 2),
+        createdAt: DateTime(2026, 11, 2),
+        bookletId: 'booklet_keep',
+      );
+
+      final currentTransactions = [tx1, tx2, otherTx];
+
+      // Case A: Delete with transactions
+      final remainingAfterFullDelete = currentTransactions
+          .where((t) => t.bookletId != 'booklet_to_delete')
+          .toList();
+      expect(remainingAfterFullDelete.length, 1);
+      expect(remainingAfterFullDelete.first.id, 'tx_3');
+
+      // Case B: Delete booklet but preserve transactions (detach bookletId)
+      final preservedTransactions = currentTransactions.map((t) {
+        if (t.bookletId == 'booklet_to_delete') {
+          return t.copyWith(clearBookletId: true);
+        }
+        return t;
+      }).toList();
+
+      expect(preservedTransactions.length, 3);
+      final untagged = preservedTransactions.where((t) => t.bookletId == null).toList();
+      expect(untagged.length, 2);
+    });
   });
 }
 

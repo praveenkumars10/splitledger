@@ -120,6 +120,7 @@ class TransactionModel {
     DateTime? recurrenceEndDate,
     DateTime? nextOccurrence,
     String? bookletId,
+    bool clearBookletId = false,
   }) => TransactionModel(
         id: id ?? this.id,
         amount: amount ?? this.amount,
@@ -138,7 +139,7 @@ class TransactionModel {
         recurrence: recurrence ?? this.recurrence,
         recurrenceEndDate: recurrenceEndDate ?? this.recurrenceEndDate,
         nextOccurrence: nextOccurrence ?? this.nextOccurrence,
-        bookletId: bookletId ?? this.bookletId,
+        bookletId: clearBookletId ? null : (bookletId ?? this.bookletId),
       );
 
   Map<String, dynamic> toMap() {
