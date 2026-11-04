@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/booklet_model.dart';
 import '../../models/transaction_model.dart';
+import '../../models/deleted_audit_item_model.dart';
 import '../household/current_household_provider.dart';
 import '../../core/preferences/app_preferences.dart';
 import '../transactions/transaction_repository.dart';
@@ -185,6 +186,9 @@ class BookletRepository {
     required String householdId,
     required String bookletId,
     bool deleteAssociatedTransactions = true,
+    String? deletedByUid,
+    String? deletedByName,
+    BookletModel? bookletData,
   }) async {
     final bookletDoc = _firestore
         .collection('households')
@@ -192,7 +196,19 @@ class BookletRepository {
         .collection('booklets')
         .doc(bookletId);
 
-    // 1. Gather all transactions in this booklet
+    // 1. Fetch booklet data if not provided
+    BookletModel? booklet = bookletData;
+    if (booklet == null) {
+      try {
+        final bSnap = await bookletDoc.get();
+        if (bSnap.exists && bSnap.data() != null) {
+          booklet = BookletModel.fromMap(bSnap.data()!, bSnap.id);
+        }
+      } catch (_) {}
+    }
+    final bookletName = booklet?.name ?? 'Cashbook';
+
+    // 2. Gather all transactions in this booklet
     final txSnapshot = await _firestore
         .collection('households')
         .doc(householdId)
@@ -200,6 +216,72 @@ class BookletRepository {
         .where('bookletId', isEqualTo: bookletId)
         .get();
 
+    final List<TransactionModel> transactions = [];
+    double totalAmount = 0.0;
+    for (final doc in txSnapshot.docs) {
+      final tx = TransactionModel.fromMap(doc.data(), doc.id);
+      transactions.add(tx);
+      totalAmount += tx.amount;
+    }
+
+    // 3. Record booklet deletion in immutable audit log
+    if (booklet != null) {
+      try {
+        final auditRef = _firestore
+            .collection('households')
+            .doc(householdId)
+            .collection('deleted_history')
+            .doc();
+
+        final auditItem = DeletedAuditItemModel.fromBooklet(
+          id: auditRef.id,
+          booklet: booklet,
+          deletedByUid: deletedByUid ?? '',
+          deletedByName: (deletedByName != null && deletedByName.trim().isNotEmpty)
+              ? deletedByName
+              : 'Member',
+          transactionCount: transactions.length,
+          totalAmount: totalAmount,
+        );
+
+        await auditRef.set(auditItem.toMap());
+      } catch (e) {
+        // ignore: avoid_print
+        print('Failed to record booklet deletion audit log: $e');
+      }
+    }
+
+    // 4. If deleting associated transactions, record each in audit log
+    if (deleteAssociatedTransactions && transactions.isNotEmpty) {
+      try {
+        final now = DateTime.now();
+        for (final tx in transactions) {
+          final auditRef = _firestore
+              .collection('households')
+              .doc(householdId)
+              .collection('deleted_history')
+              .doc();
+
+          final auditItem = DeletedAuditItemModel.fromTransaction(
+            id: auditRef.id,
+            transaction: tx,
+            deletedByUid: deletedByUid ?? '',
+            deletedByName: (deletedByName != null && deletedByName.trim().isNotEmpty)
+                ? deletedByName
+                : 'Member',
+            bookletName: bookletName,
+            deletedAt: now,
+          );
+
+          await auditRef.set(auditItem.toMap());
+        }
+      } catch (e) {
+        // ignore: avoid_print
+        print('Failed to record deleted transactions audit log: $e');
+      }
+    }
+
+    // 5. Delete booklet and delete/untag transactions
     final List<DocumentReference> toDelete = [bookletDoc];
     final List<DocumentReference> toUntag = [];
 
@@ -211,7 +293,6 @@ class BookletRepository {
       }
     }
 
-    // 2. Commit in batches of up to 400 operations
     WriteBatch batch = _firestore.batch();
     int opCount = 0;
 

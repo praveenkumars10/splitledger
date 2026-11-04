@@ -14,6 +14,7 @@ import 'add_transaction_page.dart';
 import 'transaction_repository.dart';
 import '../booklet/booklet_repository.dart';
 import '../booklet/widgets/booklet_selector_bar.dart';
+import '../history/deleted_history_page.dart';
 
 class TransactionHistoryPage extends ConsumerStatefulWidget {
   const TransactionHistoryPage({super.key});
@@ -34,6 +35,20 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  String _resolveBookletName(TransactionModel tx) {
+    if (tx.bookletId == null) return 'Main Cashbook';
+    final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
+    return booklets.where((b) => b.id == tx.bookletId).firstOrNull?.name ?? 'Main Cashbook';
+  }
+
+  String _getCurrentUserName() {
+    final currentUser = ref.read(authStateChangesProvider).asData?.value;
+    final household = ref.read(currentHouseholdProvider).asData?.value;
+    return household?.members.where((m) => m.uid == currentUser?.uid).firstOrNull?.name ??
+        currentUser?.displayName ??
+        'Member';
   }
 
   void _showTransactionDetails(TransactionModel tx, bool isMe, String partnerName) {
@@ -217,7 +232,15 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
 
                         if (confirmed == true && context.mounted) {
                           Navigator.pop(context);
-                          await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
+                          final currentUser = ref.read(authStateChangesProvider).asData?.value;
+                          await ref.read(transactionRepositoryProvider).deleteTransaction(
+                                household.id,
+                                tx.id,
+                                deletedByUid: currentUser?.uid,
+                                deletedByName: _getCurrentUserName(),
+                                bookletName: _resolveBookletName(tx),
+                                transactionData: tx,
+                              );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
@@ -266,6 +289,16 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),
             child: BookletSelectorBar(compact: true),
+          ),
+          IconButton(
+            icon: const Icon(Icons.history_toggle_off_rounded),
+            tooltip: AppStrings.tr(language, 'deleted_history'),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DeletedHistoryPage()),
+              );
+            },
           ),
           IconButton(
             icon: const Icon(Icons.table_chart_outlined),
@@ -502,7 +535,15 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                       },
                       onDismissed: (_) async {
                         if (household != null) {
-                          await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
+                          final currentUser = ref.read(authStateChangesProvider).asData?.value;
+                          await ref.read(transactionRepositoryProvider).deleteTransaction(
+                                household.id,
+                                tx.id,
+                                deletedByUid: currentUser?.uid,
+                                deletedByName: _getCurrentUserName(),
+                                bookletName: _resolveBookletName(tx),
+                                transactionData: tx,
+                              );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),

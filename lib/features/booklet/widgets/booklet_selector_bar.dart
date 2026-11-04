@@ -8,6 +8,7 @@ import '../../../models/booklet_model.dart';
 import '../../auth/auth_controller.dart';
 import '../../household/current_household_provider.dart';
 import '../booklet_repository.dart';
+import '../../history/deleted_history_page.dart';
 
 class BookletSelectorBar extends ConsumerWidget {
   final bool compact;
@@ -355,6 +356,18 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                 showCreateBookletDialog(context);
               },
             ),
+            const SizedBox(height: 6),
+            TextButton.icon(
+              icon: const Icon(Icons.history_toggle_off_rounded, size: 18),
+              label: Text(AppStrings.tr(language, 'view_deleted_history')),
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DeletedHistoryPage()),
+                );
+              },
+            ),
           ],
         ),
       ),
@@ -438,6 +451,14 @@ Future<void> _showDeleteBookletDialog(
             onPressed: () async {
               Navigator.pop(dialogCtx);
               final household = ref.read(currentHouseholdProvider).asData?.value;
+              final currentUser = ref.read(authStateChangesProvider).asData?.value;
+              final memberName = household?.members
+                  .where((m) => m.uid == currentUser?.uid)
+                  .firstOrNull
+                  ?.name ??
+                  currentUser?.displayName ??
+                  'Member';
+
               if (household != null) {
                 if (ref.read(selectedBookletFilterProvider) == booklet.id) {
                   ref.read(selectedBookletFilterProvider.notifier).setFilter(null);
@@ -450,6 +471,9 @@ Future<void> _showDeleteBookletDialog(
                       householdId: household.id,
                       bookletId: booklet.id,
                       deleteAssociatedTransactions: deleteTransactions,
+                      deletedByUid: currentUser?.uid,
+                      deletedByName: memberName,
+                      bookletData: booklet,
                     );
 
                 if (context.mounted) {

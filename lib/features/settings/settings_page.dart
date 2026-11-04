@@ -19,6 +19,7 @@ import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
 import '../booklet/booklet_repository.dart';
 import '../booklet/widgets/booklet_selector_bar.dart';
+import '../history/deleted_history_page.dart';
 import '../../core/constants/app_version.dart';
 
 class _RecoveryKeyDialog extends ConsumerStatefulWidget {
@@ -635,6 +636,26 @@ class SettingsPage extends ConsumerWidget {
               onTap: () => showBookletSwitchSheet(context),
             ),
           ],
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.12),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.history_toggle_off_rounded, color: Colors.redAccent),
+            ),
+            title: Text(AppStrings.tr(language, 'deleted_history'), style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(AppStrings.tr(language, 'deleted_history_desc')),
+            trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DeletedHistoryPage()),
+              );
+            },
+          ),
           const Divider(),
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -694,7 +715,11 @@ class SettingsPage extends ConsumerWidget {
                           final navigator = Navigator.of(context);
                           navigator.pop();
                           try {
-                            await ref.read(transactionRepositoryProvider).deleteAllTransactions(household.id);
+                            await ref.read(transactionRepositoryProvider).deleteAllTransactions(
+                                  household.id,
+                                  deletedByUid: currentUser?.uid,
+                                  deletedByName: currentUser?.displayName ?? 'Member',
+                                );
                             scaffoldMessenger.showSnackBar(
                               const SnackBar(content: Text('Transactions cleared')),
                             );

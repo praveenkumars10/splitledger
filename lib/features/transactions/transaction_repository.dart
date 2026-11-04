@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/transaction_model.dart';
+import '../../models/deleted_audit_item_model.dart';
 import '../household/current_household_provider.dart';
 
 final transactionRepositoryProvider = Provider<TransactionRepository>((ref) {
@@ -55,28 +56,106 @@ class TransactionRepository {
         .update(transaction.toMap());
   }
 
-  Future<void> deleteTransaction(String householdId, String transactionId) async {
-    await _firestore
+  Future<void> deleteTransaction(
+    String householdId,
+    String transactionId, {
+    String? deletedByUid,
+    String? deletedByName,
+    String? bookletName,
+    TransactionModel? transactionData,
+  }) async {
+    final docRef = _firestore
         .collection('households')
         .doc(householdId)
         .collection('transactions')
-        .doc(transactionId)
-        .delete();
+        .doc(transactionId);
+
+    // Record to deleted_history audit log before deleting
+    try {
+      TransactionModel? tx = transactionData;
+      if (tx == null) {
+        final docSnap = await docRef.get();
+        if (docSnap.exists && docSnap.data() != null) {
+          tx = TransactionModel.fromMap(docSnap.data()!, docSnap.id);
+        }
+      }
+
+      if (tx != null) {
+        final auditRef = _firestore
+            .collection('households')
+            .doc(householdId)
+            .collection('deleted_history')
+            .doc();
+
+        final auditItem = DeletedAuditItemModel.fromTransaction(
+          id: auditRef.id,
+          transaction: tx,
+          deletedByUid: deletedByUid ?? '',
+          deletedByName: (deletedByName != null && deletedByName.trim().isNotEmpty)
+              ? deletedByName
+              : 'Member',
+          bookletName: bookletName,
+        );
+
+        await auditRef.set(auditItem.toMap());
+      }
+    } catch (e) {
+      // ignore: avoid_print
+      print('Failed to record transaction deletion to audit log: $e');
+    }
+
+    await docRef.delete();
   }
 
-  Future<void> deleteAllTransactions(String householdId) async {
-    final batch = _firestore.batch();
+  Future<void> deleteAllTransactions(
+    String householdId, {
+    String? deletedByUid,
+    String? deletedByName,
+  }) async {
     final snapshot = await _firestore
         .collection('households')
         .doc(householdId)
         .collection('transactions')
         .get();
-        
+
+    final now = DateTime.now();
+    for (final doc in snapshot.docs) {
+      try {
+        final tx = TransactionModel.fromMap(doc.data(), doc.id);
+        final auditRef = _firestore
+            .collection('households')
+            .doc(householdId)
+            .collection('deleted_history')
+            .doc();
+
+        final auditItem = DeletedAuditItemModel.fromTransaction(
+          id: auditRef.id,
+          transaction: tx,
+          deletedByUid: deletedByUid ?? '',
+          deletedByName: (deletedByName != null && deletedByName.trim().isNotEmpty)
+              ? deletedByName
+              : 'Member',
+          deletedAt: now,
+        );
+        await auditRef.set(auditItem.toMap());
+      } catch (_) {}
+    }
+
+    WriteBatch batch = _firestore.batch();
+    int opCount = 0;
     for (final doc in snapshot.docs) {
       batch.delete(doc.reference);
+      opCount++;
+      if (opCount >= 400) {
+        await batch.commit();
+        batch = _firestore.batch();
+        opCount = 0;
+      }
     }
-    
-    await batch.commit();
+
+    if (opCount > 0) {
+      await batch.commit();
+    }
   }
 
 

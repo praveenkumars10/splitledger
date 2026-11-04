@@ -762,7 +762,27 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             onDismissed: (_) async {
                               if (household == null) return;
                               try {
-                                await ref.read(transactionRepositoryProvider).deleteTransaction(household.id, tx.id);
+                                final deleterName = household.members
+                                    .where((m) => m.uid == currentUser.uid)
+                                    .firstOrNull
+                                    ?.name ??
+                                    currentUser.displayName ??
+                                    'Member';
+                                final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
+                                final bName = booklets
+                                    .where((b) => b.id == tx.bookletId)
+                                    .firstOrNull
+                                    ?.name ??
+                                    'Main Cashbook';
+
+                                await ref.read(transactionRepositoryProvider).deleteTransaction(
+                                      household.id,
+                                      tx.id,
+                                      deletedByUid: currentUser.uid,
+                                      deletedByName: deleterName,
+                                      bookletName: bName,
+                                      transactionData: tx,
+                                    );
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
