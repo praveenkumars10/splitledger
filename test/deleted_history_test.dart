@@ -138,7 +138,7 @@ void main() {
         deletedByName: 'User 2',
       );
 
-      expect(audit.bookletName, 'Main Cashbook');
+      expect(audit.bookletName, 'Cash Book');
     });
 
     test('3-Month (90-day) Retention Cutoff Logic', () {

@@ -73,7 +73,7 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
   // 5. Default virtual fallback if no booklets are created yet
   return BookletModel(
     id: 'default',
-    name: 'Main Cashbook',
+    name: 'Cash Book',
     startDate: household?.createdAt ?? DateTime.now(),
     createdByUid: '',
     createdByName: 'System',
@@ -81,15 +81,38 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
   );
 });
 
-List<TransactionModel> _deduplicateWalletTransactions(List<TransactionModel> list) {
+List<TransactionModel> _deduplicateTransactions(List<TransactionModel> list) {
   final seenWalletKeys = <String>{};
+  final seenDocIds = <String>{};
+  final seenDoubleTapSignatures = <String>{};
   final result = <TransactionModel>[];
+
   for (final tx in list) {
-    if (tx.category.toLowerCase() == 'wallet') {
-      final key = '${tx.bookletId}_${tx.paidByUid}';
-      if (seenWalletKeys.contains(key)) continue; // skip duplicate wallet entry
-      seenWalletKeys.add(key);
+    // 1. Exact document ID deduplication
+    if (tx.id.isNotEmpty && !seenDocIds.add(tx.id)) {
+      continue;
     }
+
+    // 2. Wallet deposit deduplication (single deposit per user per booklet)
+    if (tx.category.toLowerCase() == 'wallet' || tx.note?.toLowerCase() == 'wallet deposit') {
+      final key = '${tx.bookletId}_${tx.paidByUid}';
+      if (!seenWalletKeys.add(key)) {
+        continue;
+      }
+      result.add(tx);
+      continue;
+    }
+
+    // 3. Double-tap duplicate entry suppression:
+    // If two transactions in the same booklet have identical user, amount, type, category, and note
+    // within 5 seconds of creation, suppress the accidental duplicate.
+    final timeBucket = (tx.createdAt.millisecondsSinceEpoch / 5000).floor();
+    final signature = '${tx.bookletId}_${tx.paidByUid}_${tx.amount.toStringAsFixed(2)}_${tx.type.name}_${tx.category.toLowerCase()}_${tx.note?.trim().toLowerCase()}_$timeBucket';
+
+    if (!seenDoubleTapSignatures.add(signature)) {
+      continue; // Skip double-tap duplicate entry
+    }
+
     result.add(tx);
   }
   return result;
@@ -100,13 +123,13 @@ List<TransactionModel> _deduplicateWalletTransactions(List<TransactionModel> lis
 final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref) {
   final allTx = ref.watch(currentTransactionsProvider).asData?.value ?? [];
   final activeBooklet = ref.watch(activeBookletProvider);
-  if (activeBooklet == null) return _deduplicateWalletTransactions(allTx);
+  if (activeBooklet == null) return _deduplicateTransactions(allTx);
 
   final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
 
   // If no booklets exist yet in the household or if viewing 'default' fallback:
   if (booklets.isEmpty || activeBooklet.id == 'default') {
-    return _deduplicateWalletTransactions(
+    return _deduplicateTransactions(
       allTx.where((tx) => tx.bookletId == null || tx.bookletId == 'default').toList(),
     );
   }
@@ -115,7 +138,7 @@ final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref)
   // Each cashbook shows ONLY transactions specifically saved or imported to it!
   final matchingTx = allTx.where((tx) => tx.bookletId == activeBooklet.id).toList();
 
-  return _deduplicateWalletTransactions(matchingTx);
+  return _deduplicateTransactions(matchingTx);
 });
 
 class BookletRepository {
@@ -226,7 +249,7 @@ class BookletRepository {
 
       if (!snap.exists) {
         await docRef.set({
-          'name': 'Main Cashbook',
+          'name': 'Cash Book',
           'startDate': Timestamp.now(),
           'createdByUid': uid,
           'createdByName': 'Member',

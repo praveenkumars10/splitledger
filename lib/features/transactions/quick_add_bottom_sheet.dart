@@ -86,6 +86,7 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
   }
 
   Future<void> _submit() async {
+    if (_isLoading) return;
     final rawAmount = _amountController.text.trim().toLowerCase();
     double? amount;
     if (rawAmount.endsWith('k')) {

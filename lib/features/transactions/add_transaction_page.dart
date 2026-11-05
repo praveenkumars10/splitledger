@@ -257,6 +257,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
   }
 
   void _save() async {
+    if (_isLoading) return;
     final cleanText = _amountController.text.trim().replaceAll(',', '');
     final amount = double.tryParse(cleanText) ?? 0;
     if (amount <= 0) {
@@ -292,7 +293,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         recurrence: _selectedRecurrence,
         recurrenceEndDate: _recurrenceEndDate,
         nextOccurrence: _selectedRecurrence == RecurrenceInterval.none ? null : TransactionModel.calculateNextOccurrence(_selectedDate, _selectedRecurrence),
-        bookletId: widget.transaction?.bookletId ?? ref.read(activeBookletProvider)?.id,
+        bookletId: ref.read(activeBookletProvider)?.id ?? widget.transaction?.bookletId,
       );
 
       if (_isEditing) {

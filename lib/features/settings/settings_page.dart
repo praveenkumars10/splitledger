@@ -1024,7 +1024,7 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
     }
     currentBooklet ??= widget.activeBooklet ?? (allBooklets.isNotEmpty ? allBooklets.first : null);
     _selectedBookletId ??= currentBooklet?.id;
-    final bookletName = currentBooklet?.name ?? 'Main Cashbook';
+    final bookletName = currentBooklet?.name ?? AppStrings.tr(language, 'cash_book');
 
     return AlertDialog(
       title: Row(

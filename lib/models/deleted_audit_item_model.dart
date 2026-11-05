@@ -93,7 +93,7 @@ class DeletedAuditItemModel {
       bookletId: transaction.bookletId,
       bookletName: (bookletName != null && bookletName.trim().isNotEmpty)
           ? bookletName.trim()
-          : 'Main Cashbook',
+          : 'Cash Book',
       originalTransactionId: transaction.id,
       amount: transaction.amount,
       category: transaction.category,
@@ -199,7 +199,7 @@ class DeletedAuditItemModel {
       deletedByName: map['deletedByName'] ?? 'Unknown Member',
       deletedAt: parseDate(map['deletedAt']),
       bookletId: map['bookletId'],
-      bookletName: map['bookletName'] ?? 'Main Cashbook',
+      bookletName: map['bookletName'] ?? 'Cash Book',
       originalTransactionId: map['originalTransactionId'],
       amount: (map['amount'] as num?)?.toDouble(),
       category: map['category'],

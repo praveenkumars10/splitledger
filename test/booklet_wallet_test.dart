@@ -9,7 +9,7 @@ void main() {
     test('BookletModel stores and retrieves member wallets independently', () {
       final bookletA = BookletModel(
         id: 'booklet_main',
-        name: 'Main Cashbook',
+        name: 'Office Cashbook',
         startDate: DateTime(2026, 1, 1),
         createdByUid: 'user_1',
         createdByName: 'Praveen',

@@ -38,9 +38,9 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
   }
 
   String _resolveBookletName(TransactionModel tx) {
-    if (tx.bookletId == null) return 'Main Cashbook';
+    if (tx.bookletId == null) return 'Cash Book';
     final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
-    return booklets.where((b) => b.id == tx.bookletId).firstOrNull?.name ?? 'Main Cashbook';
+    return booklets.where((b) => b.id == tx.bookletId).firstOrNull?.name ?? 'Cash Book';
   }
 
   String _getCurrentUserName() {
@@ -304,7 +304,7 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
             icon: const Icon(Icons.table_chart_outlined),
             tooltip: AppStrings.tr(language, 'export_csv'),
             onPressed: () async {
-              final transactions = transactionsAsync.asData?.value ?? [];
+              final transactions = ref.read(activeBookletTransactionsProvider);
               if (transactions.isEmpty) return;
               final filtered = transactions.where((t) {
                 if (_searchQuery.isNotEmpty) {
