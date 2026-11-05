@@ -123,6 +123,7 @@ class WalletRepository {
   }
 
   /// Ensures an incoming transaction entry exists for the wallet amount (Bank Passbook credit entry).
+  /// Uses a deterministic document ID (`wallet_${bookletId}_${uid}`) and cleans up any duplicates.
   Future<void> ensureWalletTransaction({
     required String householdId,
     required String bookletId,
@@ -135,40 +136,45 @@ class WalletRepository {
         .doc(householdId)
         .collection('transactions');
 
-    final existingSnap = await txCollection
-        .where('bookletId', isEqualTo: bookletId)
-        .where('paidByUid', isEqualTo: uid)
-        .where('category', isEqualTo: 'wallet')
-        .get();
+    final deterministicDocId = 'wallet_${bookletId}_$uid';
+    final targetDocRef = txCollection.doc(deterministicDocId);
+
+    // 1. Query any duplicate or legacy wallet transactions for this booklet and member
+    try {
+      final existingSnap = await txCollection
+          .where('bookletId', isEqualTo: bookletId)
+          .where('paidByUid', isEqualTo: uid)
+          .where('category', isEqualTo: 'wallet')
+          .get();
+
+      // Delete any duplicates or old random-ID docs
+      for (final doc in existingSnap.docs) {
+        if (doc.id != deterministicDocId) {
+          try {
+            await doc.reference.delete();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
 
     if (amount > 0) {
-      if (existingSnap.docs.isNotEmpty) {
-        // Update the existing entry amount
-        await existingSnap.docs.first.reference.update({
-          'amount': amount,
-          'type': 'received',
-          'note': 'Wallet Deposit',
-          if (userName != null && userName.isNotEmpty) 'paidByName': userName,
-        });
-      } else {
-        // Create new incoming wallet transaction
-        await txCollection.add({
-          'amount': amount,
-          'category': 'wallet',
-          'paidByUid': uid,
-          'paidByName': userName ?? 'Member',
-          'note': 'Wallet Deposit',
-          'type': 'received',
-          'date': Timestamp.now(),
-          'createdAt': Timestamp.now(),
-          'bookletId': bookletId,
-        });
-      }
+      // 2. Always write to the deterministic single document ID (idempotent)!
+      await targetDocRef.set({
+        'amount': amount,
+        'category': 'wallet',
+        'paidByUid': uid,
+        'paidByName': userName ?? 'Member',
+        'note': 'Wallet Deposit',
+        'type': 'received',
+        'date': Timestamp.now(),
+        'createdAt': Timestamp.now(),
+        'bookletId': bookletId,
+      }, SetOptions(merge: true));
     } else {
-      // If amount is 0, delete any existing wallet transaction
-      for (final doc in existingSnap.docs) {
-        await doc.reference.delete();
-      }
+      // If amount is 0, delete the deterministic doc too
+      try {
+        await targetDocRef.delete();
+      } catch (_) {}
     }
   }
 }

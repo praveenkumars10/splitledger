@@ -91,6 +91,7 @@ class BackupRestoreService {
     required String currentUid,
     required String rawJson,
     bool replaceExisting = false,
+    String? targetBookletId,
   }) async {
     try {
       final data = validateBackupJson(rawJson);
@@ -109,13 +110,25 @@ class BackupRestoreService {
       final txRepo = ref.read(transactionRepositoryProvider);
 
       if (replaceExisting) {
-        await txRepo.deleteAllTransactions(householdId);
+        if (targetBookletId != null && targetBookletId.isNotEmpty) {
+          final allExisting = ref.read(currentTransactionsProvider).asData?.value ?? [];
+          for (final tx in allExisting) {
+            if (tx.bookletId == targetBookletId) {
+              await txRepo.deleteTransaction(householdId, tx.id);
+            }
+          }
+        } else {
+          await txRepo.deleteAllTransactions(householdId);
+        }
       }
 
       int importedCount = 0;
       for (final tx in transactionsToRestore) {
-        // Create new ID to ensure clean insert
-        final cleanTx = tx.copyWith(id: '');
+        // Tag with targetBookletId so transactions belong ONLY to this cashbook!
+        final cleanTx = tx.copyWith(
+          id: '',
+          bookletId: targetBookletId ?? tx.bookletId,
+        );
         await txRepo.addTransaction(householdId, cleanTx);
         importedCount++;
       }
@@ -123,7 +136,12 @@ class BackupRestoreService {
       // Restore wallet amount if present
       final backupWallet = (data['walletAmount'] as num?)?.toDouble();
       if (backupWallet != null && backupWallet > 0) {
-        await ref.read(walletRepositoryProvider).setWalletAmount(currentUid, backupWallet);
+        await ref.read(walletRepositoryProvider).setWalletAmount(
+              currentUid,
+              backupWallet,
+              householdId: householdId,
+              bookletId: targetBookletId,
+            );
       }
 
       return BackupResult(

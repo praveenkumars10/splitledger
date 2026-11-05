@@ -81,43 +81,41 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
   );
 });
 
+List<TransactionModel> _deduplicateWalletTransactions(List<TransactionModel> list) {
+  final seenWalletKeys = <String>{};
+  final result = <TransactionModel>[];
+  for (final tx in list) {
+    if (tx.category.toLowerCase() == 'wallet') {
+      final key = '${tx.bookletId}_${tx.paidByUid}';
+      if (seenWalletKeys.contains(key)) continue; // skip duplicate wallet entry
+      seenWalletKeys.add(key);
+    }
+    result.add(tx);
+  }
+  return result;
+}
+
 /// Returns all transactions belonging to the currently active or selected booklet.
+/// Ensures strict cashbook data isolation: each cashbook shows ONLY its own transactions.
 final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref) {
   final allTx = ref.watch(currentTransactionsProvider).asData?.value ?? [];
   final activeBooklet = ref.watch(activeBookletProvider);
-  if (activeBooklet == null) return allTx;
+  if (activeBooklet == null) return _deduplicateWalletTransactions(allTx);
 
   final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
-  final isDefaultOrOnly = activeBooklet.id == 'default' || booklets.isEmpty || (booklets.length == 1 && booklets.first.id == activeBooklet.id);
 
-  if (isDefaultOrOnly) {
-    return allTx;
+  // If no booklets exist yet in the household or if viewing 'default' fallback:
+  if (booklets.isEmpty || activeBooklet.id == 'default') {
+    return _deduplicateWalletTransactions(
+      allTx.where((tx) => tx.bookletId == null || tx.bookletId == 'default').toList(),
+    );
   }
 
-  // Transactions belonging to this booklet
+  // Strictly filter transactions by active booklet ID:
+  // Each cashbook shows ONLY transactions specifically saved or imported to it!
   final matchingTx = allTx.where((tx) => tx.bookletId == activeBooklet.id).toList();
 
-  if (matchingTx.isNotEmpty) {
-    // Return transactions for this booklet plus any untagged legacy transactions
-    return allTx.where((tx) => tx.bookletId == activeBooklet.id || tx.bookletId == null).toList();
-  }
-
-  // If this active booklet has 0 matching transactions:
-  // Check if there are untagged transactions or orphaned transactions
-  final validBookletIds = booklets.map((b) => b.id).toSet();
-  final unassigned = allTx.where((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId)).toList();
-  if (unassigned.isNotEmpty) {
-    return unassigned;
-  }
-
-  // Check if other valid booklets own the transactions in allTx.
-  final otherBookletsWithTx = allTx.where((tx) => tx.bookletId != null && validBookletIds.contains(tx.bookletId));
-  if (otherBookletsWithTx.isEmpty) {
-    // No other valid booklet owns transactions yet; return allTx so transactions are immediately visible!
-    return allTx;
-  }
-
-  return [];
+  return _deduplicateWalletTransactions(matchingTx);
 });
 
 class BookletRepository {

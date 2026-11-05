@@ -25,6 +25,8 @@ import '../budget/widgets/budget_alert_card.dart';
 import '../budget/widgets/category_budget_dialog.dart';
 import '../recurring/recurring_page.dart';
 import '../savings/savings_page.dart';
+import '../history/deleted_history_page.dart';
+import '../transactions/transaction_history_page.dart';
 import '../../core/widgets/receipt_viewer_dialog.dart';
 
 class DashboardPage extends ConsumerStatefulWidget {
@@ -178,7 +180,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       final allTx = ref.watch(currentTransactionsProvider).asData?.value;
       if (allTx != null && allTx.isNotEmpty) {
         final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
-        final validBookletIds = booklets.map((b) => b.id).toSet();
 
         // 1. If no booklets exist in Firestore, create the initial Main Cashbook and transfer all transactions into it
         if (booklets.isEmpty) {
@@ -204,30 +205,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             }
           });
         } else if (activeBooklet != null && activeBooklet.id != 'default') {
-          // 2. If booklets exist, consolidate untagged or orphaned transactions to active booklet
-          final hasUntaggedOrOrphaned = allTx.any((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId));
-          final singleBookletMismatch = booklets.length <= 1 && allTx.any((tx) => tx.bookletId != activeBooklet.id);
-
-          if (hasUntaggedOrOrphaned || singleBookletMismatch) {
-            _isAutoConsolidating = true;
-            Future.microtask(() async {
-              try {
-                await ref.read(bookletRepositoryProvider).autoConsolidateTransactions(
-                      householdId: household.id,
-                      targetBookletId: activeBooklet.id,
-                      forceAll: booklets.length <= 1,
-                    );
-                if (household.activeBookletId != activeBooklet.id) {
-                  await ref.read(bookletRepositoryProvider).setActiveBooklet(household.id, activeBooklet.id);
-                }
-              } catch (_) {
-              } finally {
-                if (mounted) _isAutoConsolidating = false;
-              }
-            });
-          }
-
-          // 3. Ensure existing wallet amounts have an incoming transaction (Bank passbook credit entry)
+          // 2. Ensure existing wallet amounts have an incoming transaction (Bank passbook credit entry)
           final hasMissingWalletTx = activeBooklet.memberWallets.entries.any((entry) {
             final uid = entry.key;
             final amt = entry.value;
@@ -239,19 +217,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 tx.category.toLowerCase() == 'wallet');
           });
 
-          if (hasMissingWalletTx && !_isAutoConsolidating) {
-            for (final entry in activeBooklet.memberWallets.entries) {
-              final uid = entry.key;
-              final amt = entry.value;
-              if (amt > 0) {
-                final exists = allTx.any((tx) =>
-                    tx.bookletId == activeBooklet.id &&
-                    tx.paidByUid == uid &&
-                    tx.type == TransactionType.received &&
-                    tx.category.toLowerCase() == 'wallet');
-                if (!exists) {
+          // Check if duplicate wallet transactions exist that need Firestore cleanup
+          final hasDuplicateWalletTx = () {
+            final seen = <String>{};
+            for (final tx in allTx) {
+              if (tx.bookletId == activeBooklet.id && tx.category.toLowerCase() == 'wallet') {
+                if (!seen.add(tx.paidByUid)) return true;
+              }
+            }
+            return false;
+          }();
+
+          if ((hasMissingWalletTx || hasDuplicateWalletTx) && !_isAutoConsolidating) {
+            _isAutoConsolidating = true;
+            Future.microtask(() async {
+              try {
+                for (final entry in activeBooklet.memberWallets.entries) {
+                  final uid = entry.key;
+                  final amt = entry.value;
                   final memberName = household.members.where((m) => m.uid == uid).firstOrNull?.name ?? 'Member';
-                  ref.read(walletRepositoryProvider).ensureWalletTransaction(
+                  await ref.read(walletRepositoryProvider).ensureWalletTransaction(
                         householdId: household.id,
                         bookletId: activeBooklet.id,
                         uid: uid,
@@ -259,8 +244,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         userName: memberName,
                       );
                 }
+              } catch (_) {
+              } finally {
+                if (mounted) _isAutoConsolidating = false;
               }
-            }
+            });
           }
         }
       }
@@ -273,14 +261,72 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           children: [
             DrawerHeader(
               decoration: BoxDecoration(color: Theme.of(context).colorScheme.primary),
-              child: const Column(
+              child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.book, size: 48, color: Colors.white),
-                  SizedBox(height: 8),
-                  Text('SplitLedger', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.book_rounded, size: 28, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('SplitLedger', style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+                          Text('Smart Cashbook & Ledger', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                        ],
+                      ),
+                    ],
+                  ),
+                  const Spacer(),
+                  if (household != null) ...[
+                    Row(
+                      children: [
+                        const Icon(Icons.home_outlined, size: 14, color: Colors.white70),
+                        const SizedBox(width: 6),
+                        Flexible(
+                          child: Text(
+                            household.name,
+                            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                  ],
+                  Text(
+                    currentUser?.email ?? currentUser?.displayName ?? '',
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ],
               ),
+            ),
+            // Core Cashbooks & Wallets
+            ListTile(
+              leading: Icon(Icons.menu_book_rounded, color: Theme.of(context).colorScheme.primary),
+              title: Text(AppStrings.tr(language, 'switch_booklet')),
+              subtitle: Text(
+                activeBooklet?.name ?? 'Main Cashbook',
+                style: TextStyle(fontSize: 12, color: onSurfaceVariant),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: () {
+                Navigator.pop(context);
+                showBookletSwitchSheet(context);
+              },
             ),
             ListTile(
               leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
@@ -294,9 +340,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                       ? Theme.of(context).colorScheme.onSurface
                       : onSurfaceVariant,
                   fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-              trailing: const Icon(Icons.edit, size: 20),
+              trailing: const Icon(Icons.edit, size: 18),
               onTap: () {
                 Navigator.pop(context);
                 if (currentUser != null) {
@@ -310,6 +359,44 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 }
               },
             ),
+            const Divider(),
+            // History Options
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.receipt_long, color: Colors.blue, size: 20),
+              ),
+              title: Text(AppStrings.tr(language, 'menu_history'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(AppStrings.tr(language, 'history_tab'), style: TextStyle(fontSize: 11, color: onSurfaceVariant)),
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryPage()));
+              },
+            ),
+            ListTile(
+              leading: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.history_toggle_off_rounded, color: Colors.redAccent, size: 20),
+              ),
+              title: Text(AppStrings.tr(language, 'deleted_history'), style: const TextStyle(fontWeight: FontWeight.w600)),
+              subtitle: Text(AppStrings.tr(language, 'deleted_history_desc'), style: TextStyle(fontSize: 11, color: onSurfaceVariant), maxLines: 1, overflow: TextOverflow.ellipsis),
+              trailing: const Icon(Icons.chevron_right, size: 20),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const DeletedHistoryPage()));
+              },
+            ),
+            const Divider(),
+            // Budgets & Goals
             ListTile(
               leading: Icon(Icons.tune_rounded, color: Theme.of(context).colorScheme.primary),
               title: Text(AppStrings.tr(language, 'category_budgets')),
@@ -337,8 +424,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 Navigator.push(context, MaterialPageRoute(builder: (_) => const SavingsPage()));
               },
             ),
+            const Divider(),
+            // Settings & Share
             ListTile(
-              leading: const Icon(Icons.settings),
+              leading: const Icon(Icons.settings_outlined),
               title: Text(AppStrings.tr(language, 'settings_tab')),
               onTap: () {
                 Navigator.pop(context);
@@ -346,7 +435,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.share),
+              leading: const Icon(Icons.share_outlined),
               title: Text(AppStrings.tr(language, 'share_app')),
               onTap: () {
                 Navigator.pop(context);
@@ -360,7 +449,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             const Divider(),
             ListTile(
               leading: const Icon(Icons.logout, color: Colors.red),
-              title: Text(AppStrings.tr(language, 'logout'), style: const TextStyle(color: Colors.red)),
+              title: Text(AppStrings.tr(language, 'logout'), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.w600)),
               onTap: () {
                 Navigator.pop(context); // close drawer
                 showDialog(
@@ -426,6 +515,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             ),
             onSelected: (value) {
               switch (value) {
+                case 'History':
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const TransactionHistoryPage()));
+                  break;
+                case 'DeletedHistory':
+                  Navigator.push(context, MaterialPageRoute(builder: (_) => const DeletedHistoryPage()));
+                  break;
                 case 'Booklet':
                   showBookletSwitchSheet(context);
                   break;
@@ -446,6 +541,47 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             itemBuilder: (context) {
               final colorScheme = Theme.of(context).colorScheme;
               return [
+                PopupMenuItem(
+                  value: 'History',
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.receipt_long, size: 18, color: Colors.blue),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        AppStrings.tr(language, 'menu_history'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'DeletedHistory',
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.history_toggle_off_rounded, size: 18, color: Colors.redAccent),
+                      ),
+                      const SizedBox(width: 12),
+                      Text(
+                        AppStrings.tr(language, 'deleted_history'),
+                        style: TextStyle(color: colorScheme.onSurface, fontWeight: FontWeight.w500),
+                      ),
+                    ],
+                  ),
+                ),
+                const PopupMenuDivider(),
                 PopupMenuItem(
                   value: 'Booklet',
                   child: Row(
@@ -771,26 +907,33 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 partner.uid,
                 userBookletWallets: userBookletWallets,
               );
-              walletCardTitle = "${shortName(partner.name)}'s ${AppStrings.tr(language, 'wallet')}";
+              final rawName = shortName(partner.name);
+              walletCardTitle = rawName.length <= 7
+                  ? (language == AppLanguage.tamil ? '$rawName வாலட்' : "$rawName's ${AppStrings.tr(language, 'wallet')}")
+                  : AppStrings.tr(language, 'wallet');
             } else {
               displayedWalletAmount = activeBooklet.getMemberWallet(
                 _selectedUserFilter,
                 userBookletWallets: userBookletWallets,
               );
               final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull;
-              final name = shortName(member?.name ?? 'Member');
-              walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
+              final rawName = shortName(member?.name ?? 'Member');
+              walletCardTitle = rawName.length <= 7
+                  ? (language == AppLanguage.tamil ? '$rawName வாலட்' : "$rawName's ${AppStrings.tr(language, 'wallet')}")
+                  : AppStrings.tr(language, 'wallet');
             }
           } else {
             displayedWalletAmount = 0.0;
             walletCardTitle = isAllUsers
                 ? AppStrings.tr(language, 'total_wallet')
-                : AppStrings.tr(language, 'wallet');
+                : (_selectedUserFilter == 'me'
+                    ? AppStrings.tr(language, 'your_wallet')
+                    : AppStrings.tr(language, 'wallet'));
           }
 
           // Balance calculation based on Wallet & Passbook In/Out
           final double remainingBalance;
-          final String balanceSubtext;
+          final String balanceCardTitle;
           final Color balanceColor;
 
           final walletReceived = filtered
@@ -801,19 +944,51 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
           if (displayedWalletAmount > 0) {
             remainingBalance = displayedWalletAmount + nonWalletReceived - totalPaid;
             if (isAllUsers) {
-              balanceSubtext = AppStrings.tr(language, 'group_balance');
+              balanceCardTitle = AppStrings.tr(language, 'group_balance');
             } else if (_selectedUserFilter == 'me') {
-              balanceSubtext = AppStrings.tr(language, 'your_balance');
+              balanceCardTitle = AppStrings.tr(language, 'your_balance');
             } else {
               final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull ?? partner;
-              final name = shortName(member?.name ?? 'Member');
-              balanceSubtext = "$name's ${AppStrings.tr(language, 'your_balance')}";
+              final rawName = shortName(member?.name ?? 'Member');
+              balanceCardTitle = rawName.length <= 7
+                  ? (language == AppLanguage.tamil ? '$rawName இருப்பு' : "$rawName's ${AppStrings.tr(language, 'balance')}")
+                  : AppStrings.tr(language, 'balance');
             }
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           } else {
             remainingBalance = totalReceived - totalPaid;
-            balanceSubtext = remainingBalance.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : (remainingBalance > 0 ? '(Cr)' : '(Dr)');
+            balanceCardTitle = isAllUsers
+                ? AppStrings.tr(language, 'group_balance')
+                : (_selectedUserFilter == 'me'
+                    ? AppStrings.tr(language, 'your_balance')
+                    : AppStrings.tr(language, 'balance'));
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
+          }
+
+          // Calculate cumulative running passbook balance across active booklet transactions
+          final chronologicalTx = List<TransactionModel>.from(activeBookletTransactions)
+            ..sort((a, b) => a.date.compareTo(b.date));
+
+          final runningBalanceMap = <String, double>{};
+          double runningBal = 0.0;
+          for (final tx in chronologicalTx) {
+            if (tx.type == TransactionType.received) {
+              runningBal += tx.amount;
+            } else {
+              runningBal -= tx.amount;
+            }
+            runningBalanceMap[tx.id] = runningBal;
+          }
+
+          // Sort filtered transactions descending by date
+          final sortedFiltered = List<TransactionModel>.from(filtered)
+            ..sort((a, b) => b.date.compareTo(a.date));
+
+          // Group by Date: e.g. "Wed, 04 Nov 2026"
+          final groupedTransactions = <String, List<TransactionModel>>{};
+          for (final tx in sortedFiltered) {
+            final dateKey = DateFormat('EEE, dd MMM yyyy').format(tx.date);
+            groupedTransactions.putIfAbsent(dateKey, () => []).add(tx);
           }
 
           return Column(
@@ -854,22 +1029,41 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               // Category Budget Alert Banner (shows if any category is >=80% or exceeded)
               BudgetAlertCard(transactions: filtered),
-              // Header Row (Bank Passbook Style)
+              // Sub-header Row (Cash In / Cash Out Passbook Style)
               Container(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'date'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    Expanded(flex: 4, child: Text(AppStrings.tr(language, 'notes_category_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
-                    Expanded(flex: 3, child: Text(AppStrings.tr(language, 'amount_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
-                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'by_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
+                    Expanded(
+                      flex: 6,
+                      child: Text(
+                        AppStrings.tr(language, 'date'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        AppStrings.tr(language, 'cash_in'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
+                    Expanded(
+                      flex: 3,
+                      child: Text(
+                        AppStrings.tr(language, 'cash_out'),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red),
+                        textAlign: TextAlign.right,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              // List
+              // List Grouped by Date (Under each date, that day's transactions are listed)
               Expanded(
-                child: filtered.isEmpty
+                child: groupedTransactions.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -880,297 +1074,280 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                           ],
                         ),
                       )
-                    : ListView.separated(
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) => const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          final tx = filtered[index];
-                          final isMe = tx.paidByUid == currentUser.uid;
-                          final isPaid = tx.type == TransactionType.paid;
-                          final color = isPaid ? Colors.red.shade700 : Colors.green.shade700;
-                          final titleText = (tx.note != null && tx.note!.trim().isNotEmpty)
-                              ? tx.note!.trim()
-                              : (tx.category.isNotEmpty ? tx.category : AppStrings.tr(language, 'other'));
+                    : ListView.builder(
+                        itemCount: groupedTransactions.length,
+                        itemBuilder: (context, groupIndex) {
+                          final dateKey = groupedTransactions.keys.elementAt(groupIndex);
+                          final txList = groupedTransactions[dateKey]!;
 
-                          return Dismissible(
-                            key: ValueKey(tx.id),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              color: Colors.red.shade600,
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 16),
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  const Icon(Icons.delete, color: Colors.white),
-                                  const SizedBox(width: 4),
-                                  Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                                ],
-                              ),
-                            ),
-                            confirmDismiss: (_) async {
-                              return await showDialog<bool>(
-                                context: context,
-                                builder: (context) => AlertDialog(
-                                  title: Text(AppStrings.tr(language, 'delete_tx_title')),
-                                  content: Text('${AppStrings.tr(language, 'delete_tx_confirm')}\n"${_currencyFormat.format(tx.amount)}" ($titleText)'),
-                                  actions: [
-                                    TextButton(
-                                      onPressed: () => Navigator.pop(context, false),
-                                      child: Text(AppStrings.tr(language, 'cancel')),
-                                    ),
-                                    FilledButton(
-                                      style: FilledButton.styleFrom(backgroundColor: Colors.red),
-                                      onPressed: () => Navigator.pop(context, true),
-                                      child: Text(AppStrings.tr(language, 'delete')),
-                                    ),
-                                  ],
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // Date Header Banner (e.g. "Wed, 04 Nov 2026")
+                              Container(
+                                width: double.infinity,
+                                color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                                child: Text(
+                                  dateKey,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                    color: Theme.of(context).colorScheme.onSurface,
+                                  ),
                                 ),
-                              );
-                            },
-                            onDismissed: (_) async {
-                              if (household == null) return;
-                              try {
-                                final deleterName = household.members
-                                    .where((m) => m.uid == currentUser.uid)
-                                    .firstOrNull
-                                    ?.name ??
-                                    currentUser.displayName ??
-                                    'Member';
-                                final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
-                                final bName = booklets
-                                    .where((b) => b.id == tx.bookletId)
-                                    .firstOrNull
-                                    ?.name ??
-                                    'Main Cashbook';
+                              ),
+                              // Day's Transactions
+                              ...txList.map((tx) {
+                                final isMe = tx.paidByUid == currentUser.uid;
+                                final isPaid = tx.type == TransactionType.paid;
+                                final color = isPaid ? Colors.red.shade700 : Colors.green.shade700;
+                                final isWallet = tx.category.toLowerCase() == 'wallet';
+                                final titleText = isWallet
+                                    ? AppStrings.tr(language, 'wallet_incoming')
+                                    : ((tx.note != null && tx.note!.trim().isNotEmpty)
+                                        ? tx.note!.trim()
+                                        : (tx.category.isNotEmpty ? tx.category : AppStrings.tr(language, 'other')));
+                                final runningBal = runningBalanceMap[tx.id] ?? 0.0;
 
-                                await ref.read(transactionRepositoryProvider).deleteTransaction(
-                                      household.id,
-                                      tx.id,
-                                      deletedByUid: currentUser.uid,
-                                      deletedByName: deleterName,
-                                      bookletName: bName,
-                                      transactionData: tx,
-                                    );
-                                if (tx.category.toLowerCase() == 'wallet') {
-                                  await ref.read(walletRepositoryProvider).setWalletAmount(
-                                        tx.paidByUid,
-                                        0,
-                                        householdId: household.id,
-                                        bookletId: tx.bookletId,
-                                      );
-                                }
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
-                                  );
-                                }
-                              } catch (e) {
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text('Failed to delete: $e')),
-                                  );
-                                }
-                              }
-                            },
-                            child: InkWell(
-                              onTap: () {
-                                if (tx.category.toLowerCase() == 'wallet') {
-                                  _showWalletDialog(
-                                    currentAmount: tx.amount,
-                                    uid: tx.paidByUid,
-                                    activeBooklet: activeBooklet,
-                                    selectedUserFilter: tx.paidByUid,
-                                  );
-                                  return;
-                                }
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => AddTransactionPage(
-                                      type: tx.type,
-                                      transaction: tx,
+                                return Dismissible(
+                                  key: ValueKey(tx.id),
+                                  direction: DismissDirection.endToStart,
+                                  background: Container(
+                                    color: Colors.red.shade600,
+                                    alignment: Alignment.centerRight,
+                                    padding: const EdgeInsets.only(right: 16),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.end,
+                                      children: [
+                                        const Icon(Icons.delete, color: Colors.white),
+                                        const SizedBox(width: 4),
+                                        Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                      ],
                                     ),
                                   ),
-                                );
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    // 1. Date Column (Bank Passbook Style)
-                                    Expanded(
-                                      flex: 2,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            DateFormat('dd MMM').format(tx.date),
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.bold,
-                                              color: Theme.of(context).colorScheme.onSurface,
-                                            ),
+                                  confirmDismiss: (_) async {
+                                    return await showDialog<bool>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        title: Text(AppStrings.tr(language, 'delete_tx_title')),
+                                        content: Text('${AppStrings.tr(language, 'delete_tx_confirm')}\n"${_currencyFormat.format(tx.amount)}" ($titleText)'),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, false),
+                                            child: Text(AppStrings.tr(language, 'cancel')),
                                           ),
-                                          const SizedBox(height: 1),
-                                          Text(
-                                            DateFormat('hh:mm a').format(tx.date),
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              color: onSurfaceVariant,
-                                            ),
+                                          FilledButton(
+                                            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                                            onPressed: () => Navigator.pop(context, true),
+                                            child: Text(AppStrings.tr(language, 'delete')),
                                           ),
                                         ],
                                       ),
-                                    ),
-                                    // 2. Notes & Category (Particulars)
-                                    Expanded(
-                                      flex: 4,
+                                    );
+                                  },
+                                  onDismissed: (_) async {
+                                    if (household == null) return;
+                                    try {
+                                      final deleterName = household.members
+                                          .where((m) => m.uid == currentUser.uid)
+                                          .firstOrNull
+                                          ?.name ??
+                                          currentUser.displayName ??
+                                          'Member';
+                                      final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
+                                      final bName = booklets
+                                          .where((b) => b.id == tx.bookletId)
+                                          .firstOrNull
+                                          ?.name ??
+                                          'Main Cashbook';
+
+                                      await ref.read(transactionRepositoryProvider).deleteTransaction(
+                                            household.id,
+                                            tx.id,
+                                            deletedByUid: currentUser.uid,
+                                            deletedByName: deleterName,
+                                            bookletName: bName,
+                                            transactionData: tx,
+                                          );
+                                      if (tx.category.toLowerCase() == 'wallet') {
+                                        await ref.read(walletRepositoryProvider).setWalletAmount(
+                                              tx.paidByUid,
+                                              0,
+                                              householdId: household.id,
+                                              bookletId: tx.bookletId,
+                                            );
+                                      }
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(context).showSnackBar(
+                                          SnackBar(content: Text('Failed to delete: $e')),
+                                        );
+                                      }
+                                    }
+                                  },
+                                  child: InkWell(
+                                    onTap: () {
+                                      if (isWallet) {
+                                        _showWalletDialog(
+                                          currentAmount: tx.amount,
+                                          uid: tx.paidByUid,
+                                          activeBooklet: activeBooklet,
+                                          selectedUserFilter: tx.paidByUid,
+                                        );
+                                        return;
+                                      }
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => AddTransactionPage(
+                                            type: tx.type,
+                                            transaction: tx,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+                                      decoration: BoxDecoration(
+                                        border: Border(
+                                          bottom: BorderSide(
+                                            color: Theme.of(context).dividerColor.withValues(alpha: 0.3),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                      ),
                                       child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
-                                          Container(
-                                            width: 32,
-                                            height: 32,
-                                            alignment: Alignment.center,
-                                            decoration: BoxDecoration(
-                                              color: color.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              tx.category.toLowerCase() == 'wallet' ? '💰' : getCategoryEmoji(titleText),
-                                              style: const TextStyle(fontSize: 15),
+                                          // Left Column: Category Emoji + Title & Subtitle (Time • Member)
+                                          Expanded(
+                                            flex: 7,
+                                            child: Row(
+                                              children: [
+                                                Container(
+                                                  width: 34,
+                                                  height: 34,
+                                                  alignment: Alignment.center,
+                                                  decoration: BoxDecoration(
+                                                    color: color.withValues(alpha: 0.1),
+                                                    borderRadius: BorderRadius.circular(8),
+                                                  ),
+                                                  child: Text(
+                                                    isWallet ? '💰' : getCategoryEmoji(titleText),
+                                                    style: const TextStyle(fontSize: 16),
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 10),
+                                                Expanded(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        titleText,
+                                                        style: TextStyle(
+                                                          fontSize: 14,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Theme.of(context).colorScheme.onSurface,
+                                                        ),
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow.ellipsis,
+                                                      ),
+                                                      const SizedBox(height: 2),
+                                                      Row(
+                                                        children: [
+                                                          Text(
+                                                            DateFormat('hh:mm a').format(tx.date),
+                                                            style: TextStyle(
+                                                              fontSize: 11,
+                                                              color: onSurfaceVariant,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Text(
+                                                            '•',
+                                                            style: TextStyle(fontSize: 10, color: onSurfaceVariant),
+                                                          ),
+                                                          const SizedBox(width: 4),
+                                                          Flexible(
+                                                            child: Text(
+                                                              isMe
+                                                                  ? AppStrings.tr(language, 'you')
+                                                                  : (tx.paidByName.isNotEmpty
+                                                                      ? shortName(tx.paidByName)
+                                                                      : partnerName),
+                                                              style: TextStyle(
+                                                                fontSize: 11,
+                                                                fontWeight: isMe ? FontWeight.w600 : FontWeight.normal,
+                                                                color: isMe ? Theme.of(context).colorScheme.primary : onSurfaceVariant,
+                                                              ),
+                                                              maxLines: 1,
+                                                              overflow: TextOverflow.ellipsis,
+                                                            ),
+                                                          ),
+                                                          if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
+                                                            const SizedBox(width: 6),
+                                                            GestureDetector(
+                                                              onTap: () => ReceiptViewerDialog.show(
+                                                                context,
+                                                                receiptPath: tx.receiptUrl!,
+                                                                title: titleText,
+                                                                amountText: _currencyFormat.format(tx.amount),
+                                                              ),
+                                                              child: Icon(Icons.receipt_long, size: 12, color: Theme.of(context).colorScheme.primary),
+                                                            ),
+                                                          ],
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
+
+                                          // Right Column: Amount (Cash In / Cash Out) & Running Balance
                                           Expanded(
+                                            flex: 5,
                                             child: Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              crossAxisAlignment: CrossAxisAlignment.end,
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
-                                                  tx.category.toLowerCase() == 'wallet'
-                                                      ? AppStrings.tr(language, 'wallet_incoming')
-                                                      : titleText,
+                                                  _currencyFormat.format(tx.amount),
                                                   style: TextStyle(
-                                                    fontSize: 13,
-                                                    fontWeight: FontWeight.w600,
-                                                    color: Theme.of(context).colorScheme.onSurface,
+                                                    color: color,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 15,
                                                   ),
-                                                  maxLines: 2,
-                                                  overflow: TextOverflow.ellipsis,
+                                                  textAlign: TextAlign.right,
                                                 ),
-                                                if (tx.category.toLowerCase() == 'wallet') ...[
-                                                  const SizedBox(height: 2),
-                                                  Container(
-                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                    decoration: BoxDecoration(
-                                                      color: Colors.green.withValues(alpha: 0.12),
-                                                      borderRadius: BorderRadius.circular(4),
-                                                    ),
-                                                    child: Text(
-                                                      AppStrings.tr(language, 'incoming_credit'),
-                                                      style: TextStyle(
-                                                        fontSize: 9,
-                                                        fontWeight: FontWeight.bold,
-                                                        color: Colors.green.shade700,
-                                                      ),
-                                                    ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  '${AppStrings.tr(language, 'balance')} ${_currencyFormat.format(runningBal)}',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: onSurfaceVariant,
                                                   ),
-                                                ] else if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
-                                                  const SizedBox(height: 2),
-                                                  GestureDetector(
-                                                    onTap: () => ReceiptViewerDialog.show(
-                                                      context,
-                                                      receiptPath: tx.receiptUrl!,
-                                                      title: titleText,
-                                                      amountText: _currencyFormat.format(tx.amount),
-                                                    ),
-                                                    child: Container(
-                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                      decoration: BoxDecoration(
-                                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                                                        borderRadius: BorderRadius.circular(4),
-                                                      ),
-                                                      child: Row(
-                                                        mainAxisSize: MainAxisSize.min,
-                                                        children: [
-                                                          Icon(Icons.receipt_long, size: 10, color: Theme.of(context).colorScheme.primary),
-                                                          const SizedBox(width: 2),
-                                                          Text(
-                                                            'Receipt',
-                                                            style: TextStyle(
-                                                              fontSize: 9,
-                                                              fontWeight: FontWeight.bold,
-                                                              color: Theme.of(context).colorScheme.primary,
-                                                            ),
-                                                          ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
+                                                  textAlign: TextAlign.right,
+                                                ),
                                               ],
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // 3. Amount (Passbook Style: +Cr in Green, -Dr in Red)
-                                    Expanded(
-                                      flex: 3,
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(
-                                            '${isPaid ? '-' : '+'} ${_currencyFormat.format(tx.amount)}',
-                                            style: TextStyle(
-                                              color: color,
-                                              fontWeight: FontWeight.bold,
-                                              fontSize: 13,
-                                            ),
-                                            textAlign: TextAlign.right,
-                                          ),
-                                          const SizedBox(height: 1),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
-                                            decoration: BoxDecoration(
-                                              color: color.withValues(alpha: 0.1),
-                                              borderRadius: BorderRadius.circular(3),
-                                            ),
-                                            child: Text(
-                                              isPaid ? 'DR' : 'CR',
-                                              style: TextStyle(
-                                                color: color,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 9,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    // 4. By Column
-                                    Expanded(
-                                      flex: 2,
-                                      child: Text(
-                                        isMe ? AppStrings.tr(language, 'you') : partnerName,
-                                        textAlign: TextAlign.right,
-                                        style: TextStyle(
-                                          fontSize: 12,
-                                          fontWeight: isMe ? FontWeight.w600 : FontWeight.normal,
-                                          color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
-                                        ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
+                                  ),
+                                );
+                              }),
+                            ],
                           );
                         },
                       ),
@@ -1202,20 +1379,23 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                               children: [
                                 Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
+                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    FittedBox(
-                                      fit: BoxFit.scaleDown,
+                                    Flexible(
                                       child: Text(
                                         walletCardTitle,
                                         style: TextStyle(
                                           color: Theme.of(context).colorScheme.primary,
-                                          fontSize: 11,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.bold,
                                         ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
                                       ),
                                     ),
                                     const SizedBox(width: 2),
-                                    Icon(Icons.edit, size: 11, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
+                                    Icon(Icons.edit, size: 10, color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.7)),
                                   ],
                                 ),
                                 const SizedBox(height: 2),
@@ -1294,7 +1474,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                         ),
                       ),
                       VerticalDivider(color: Theme.of(context).dividerColor, width: 1),
-                      // 4. Your Balance (Remaining)
+                      // 4. Balance (Remaining)
                       Expanded(
                         child: InkWell(
                           onTap: () {
@@ -1315,9 +1495,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 FittedBox(
                                   fit: BoxFit.scaleDown,
                                   child: Text(
-                                    balanceSubtext,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 10),
+                                    balanceCardTitle,
+                                    style: TextStyle(
+                                      color: balanceColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 10,
+                                    ),
                                     textAlign: TextAlign.center,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -1336,17 +1522,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                     ),
                                   ),
                                 ),
-                                FittedBox(
-                                  fit: BoxFit.scaleDown,
-                                  child: Text(
-                                    balanceSubtext,
-                                    style: TextStyle(
-                                      color: balanceColor,
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w600,
+                                if (displayedWalletAmount <= 0 && net.abs() >= 0.01)
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    child: Text(
+                                      net > 0 ? '(Cr)' : '(Dr)',
+                                      style: TextStyle(
+                                        color: balanceColor,
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
-                                ),
                               ],
                             ),
                           ),

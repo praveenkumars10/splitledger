@@ -169,12 +169,64 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  void _showRestoreDialog(BuildContext context, String householdId, String currentUid) {
+  void _showRestoreDialog(
+    BuildContext context,
+    String householdId,
+    String currentUid, {
+    String? targetBookletId,
+    String? targetBookletName,
+  }) {
     showDialog(
       context: context,
       builder: (context) => _RestoreDialog(
         householdId: householdId,
         currentUid: currentUid,
+        targetBookletId: targetBookletId,
+        targetBookletName: targetBookletName,
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    Color? color,
+  }) {
+    final effectiveColor = color ?? Theme.of(context).colorScheme.primary;
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8, top: 20),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: effectiveColor),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+              color: effectiveColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard(BuildContext context, {required List<Widget> children}) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.6)),
+      ),
+      color: Theme.of(context).colorScheme.surface,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: children,
       ),
     );
   }
@@ -198,616 +250,685 @@ class SettingsPage extends ConsumerWidget {
         title: Text(AppStrings.tr(language, 'settings_tab')),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16.0),
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
         children: [
-          // Theme & Appearance
-          Row(
+          // -----------------------------------------------------------
+          // 1. Household & Group Settings
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.people_alt_outlined,
+            title: AppStrings.tr(language, 'household_settings'),
+          ),
+          _buildSectionCard(
+            context,
             children: [
-              Icon(Icons.palette_outlined, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                AppStrings.tr(language, 'appearance_theme'),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            AppStrings.tr(language, 'theme_preview_desc'),
-            style: TextStyle(fontSize: 13, color: onSurfaceVariant),
-          ),
-          const SizedBox(height: 12),
-
-          // Live Interactive App Theme Preview Card
-          _LiveThemePreviewCard(
-            themeSettings: themeSettings,
-            language: language,
-          ),
-          const SizedBox(height: 18),
-
-          // Theme Mode Selector
-          SegmentedButton<ThemeMode>(
-            segments: [
-              ButtonSegment(
-                value: ThemeMode.system,
-                icon: const Icon(Icons.brightness_auto, size: 16),
-                label: Text(AppStrings.tr(language, 'theme_mode_system')),
-              ),
-              ButtonSegment(
-                value: ThemeMode.light,
-                icon: const Icon(Icons.light_mode, size: 16),
-                label: Text(AppStrings.tr(language, 'theme_mode_light')),
-              ),
-              ButtonSegment(
-                value: ThemeMode.dark,
-                icon: const Icon(Icons.dark_mode, size: 16),
-                label: Text(AppStrings.tr(language, 'theme_mode_dark')),
-              ),
-            ],
-            selected: {themeSettings.themeMode},
-            onSelectionChanged: (set) {
-              ref.read(themeControllerProvider.notifier).setThemeMode(set.first);
-            },
-          ),
-          const SizedBox(height: 16),
-
-          // Accent Color Selector Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                AppStrings.tr(language, 'theme_accent_color'),
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: onSurfaceVariant),
-              ),
-              Text(
-                themeSettings.accentColor.getLocalizedLabel(language),
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeSettings.accentColor.color),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-
-          // Theme Palette Cards Carousel
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: AppThemeColor.values.map((colorItem) {
-                final isSelected = themeSettings.accentColor == colorItem;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 10.0, bottom: 4.0),
-                  child: _ThemeColorCard(
-                    colorItem: colorItem,
-                    isSelected: isSelected,
-                    language: language,
-                    onTap: () {
-                      ref.read(themeControllerProvider.notifier).setAccentColor(colorItem);
-                    },
+              if (household != null) ...[
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.home_outlined, color: Colors.blue),
                   ),
-                );
-              }).toList(),
-            ),
-          ),
-          const Divider(height: 32),
-
-          // Language Setting
-          Row(
-            children: [
-              Icon(Icons.translate, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                AppStrings.tr(language, 'language'),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+                  title: Text(AppStrings.tr(language, 'household_name'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text(household.name),
+                  trailing: Icon(Icons.edit, size: 18, color: Theme.of(context).colorScheme.primary),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (dialogCtx) => _EditHouseholdNameDialog(
+                        householdId: household.id,
+                        initialName: household.name,
+                      ),
+                    );
+                  },
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          SegmentedButton<AppLanguage>(
-            segments: AppLanguage.values.map((lang) {
-              return ButtonSegment(
-                value: lang,
-                label: Text('${lang.flag} ${lang.label}'),
-              );
-            }).toList(),
-            selected: {language},
-            onSelectionChanged: (set) {
-              ref.read(languageControllerProvider.notifier).setLanguage(set.first);
-            },
-          ),
-          const Divider(height: 32),
-
-          // Privacy Mode
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            secondary: Icon(
-              preferences.isPrivacyMode ? Icons.visibility_off : Icons.visibility,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            title: Text(AppStrings.tr(language, 'privacy_mode'), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(AppStrings.tr(language, 'privacy_mode_sub')),
-            value: preferences.isPrivacyMode,
-            onChanged: (val) {
-              ref.read(appPreferencesProvider.notifier).togglePrivacyMode();
-            },
-          ),
-          const Divider(height: 32),
-
-          // Storage & Data Backup
-          Row(
-            children: [
-              Icon(Icons.storage_outlined, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(width: 8),
-              Text(
-                AppStrings.tr(language, 'storage_backup_title'),
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.primary,
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.qr_code, color: Colors.green),
+                  ),
+                  title: Text(AppStrings.tr(language, 'invite_code'), style: TextStyle(color: onSurfaceVariant, fontSize: 12)),
+                  subtitle: Text(
+                    household.inviteCode,
+                    style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, letterSpacing: 3),
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: Icon(Icons.copy, size: 20, color: Theme.of(context).colorScheme.primary),
+                        tooltip: 'Copy Invite Code',
+                        onPressed: () {
+                          Clipboard.setData(ClipboardData(text: household.inviteCode));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(AppStrings.tr(language, 'invite_code_copied'))),
+                          );
+                        },
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.share, size: 20, color: Theme.of(context).colorScheme.primary),
+                        tooltip: 'Share Invite Code',
+                        onPressed: () {
+                          SharePlus.instance.share(
+                            ShareParams(
+                              text: 'Hey! Join my SplitLedger household to track our shared expenses.\n\nUse this invite code: ${household.inviteCode}',
+                            ),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
                 ),
+                const Divider(height: 1),
+              ],
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.indigo.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.auto_stories, color: Colors.indigo),
+                ),
+                title: Text(AppStrings.tr(language, 'manage_booklets'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  activeBooklet != null
+                      ? '${AppStrings.tr(language, 'active_booklet')}: ${activeBooklet.name}'
+                      : AppStrings.tr(language, 'manage_booklets_desc'),
+                ),
+                trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+                onTap: () => showBookletSwitchSheet(context),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          // Storage Mode Segmented Switch
-          Text(AppStrings.tr(language, 'storage_mode_desc'), style: TextStyle(fontSize: 13, color: onSurfaceVariant)),
-          const SizedBox(height: 10),
-          SegmentedButton<StorageMode>(
-            segments: [
-              ButtonSegment(
-                value: StorageMode.cloud,
-                icon: const Icon(Icons.cloud_sync, size: 16),
-                label: Text(AppStrings.tr(language, 'storage_cloud')),
+
+          // -----------------------------------------------------------
+          // 2. Personal & Security
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.security_outlined,
+            title: AppStrings.tr(language, 'sec_personal_security'),
+          ),
+          _buildSectionCard(
+            context,
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.account_balance_wallet, color: Colors.amber.shade800),
+                ),
+                title: Text(AppStrings.tr(language, 'wallet_balance'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(
+                  (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
+                      ? '${activeBooklet!.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
+                      : '${activeBooklet?.name ?? 'Wallet'}: ${AppStrings.tr(language, 'wallet_not_set')}',
+                  style: TextStyle(
+                    fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                  ),
+                ),
+                trailing: Icon(Icons.edit, size: 18, color: Theme.of(context).colorScheme.primary),
+                onTap: () {
+                  if (currentUser != null) {
+                    final myAmount = activeBooklet?.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets) ?? 0.0;
+                    _showWalletDialog(
+                      context,
+                      myAmount,
+                      currentUser.uid,
+                      activeBooklet: activeBooklet,
+                      householdId: household?.id,
+                    );
+                  }
+                },
               ),
-              ButtonSegment(
-                value: StorageMode.local,
-                icon: const Icon(Icons.phone_android, size: 16),
-                label: Text(AppStrings.tr(language, 'storage_local')),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.key_outlined, color: Colors.teal),
+                ),
+                title: Text(AppStrings.tr(language, 'recovery_key_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'recovery_key_settings_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  if (currentUser != null) {
+                    _showRecoveryKeyDialog(context, currentUser.uid);
+                  }
+                },
               ),
             ],
-            selected: {preferences.storageMode},
-            onSelectionChanged: (set) {
-              ref.read(appPreferencesProvider.notifier).setStorageMode(set.first);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('${AppStrings.tr(language, 'storage_mode')}: ${set.first.title}')),
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-
-          // Backup & Export JSON Tile
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.15), shape: BoxShape.circle),
-              child: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
-            ),
-            title: Text(AppStrings.tr(language, 'backup_export'), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(AppStrings.tr(language, 'backup_export_sub')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () async {
-              if (household != null) {
-                final file = await BackupRestoreService.exportBackup(
-                  context: context,
-                  transactions: transactions,
-                  walletAmount: walletAmount,
-                  householdName: household.name,
-                  members: household.members,
-                );
-                if (file != null && context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Backup ready and shared!'), backgroundColor: Colors.green),
-                  );
-                }
-              }
-            },
           ),
 
-          // Restore JSON Tile
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.purple.withValues(alpha: 0.15), shape: BoxShape.circle),
-              child: const Icon(Icons.cloud_download_outlined, color: Colors.deepPurple),
-            ),
-            title: Text(AppStrings.tr(language, 'restore_import'), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(AppStrings.tr(language, 'restore_import_sub')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              if (household != null && currentUser != null) {
-                _showRestoreDialog(context, household.id, currentUser.uid);
-              }
-            },
+          // -----------------------------------------------------------
+          // 3. Financial Management & Budgets
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.account_balance_outlined,
+            title: AppStrings.tr(language, 'sec_financial_tools'),
           ),
-          const Divider(height: 32),
-
-          // Account & Security
-          Text(
-            language == AppLanguage.tamil ? 'பாதுகாப்பு & கணக்கு' : 'Account & Security',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.15), shape: BoxShape.circle),
-              child: const Icon(Icons.key_outlined, color: Colors.blue),
-            ),
-            title: Text(AppStrings.tr(language, 'recovery_key_settings'), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(AppStrings.tr(language, 'recovery_key_settings_sub')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              if (currentUser != null) {
-                _showRecoveryKeyDialog(context, currentUser.uid);
-              }
-            },
-          ),
-          const Divider(height: 32),
-
-          // Personal Wallet
-          Text(
-            AppStrings.tr(language, 'wallet'),
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(height: 8),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
-            title: Text(AppStrings.tr(language, 'wallet_balance')),
-            subtitle: Text(
-              (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
-                  ? '${activeBooklet!.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
-                  : '${activeBooklet?.name ?? 'Wallet'}: ${AppStrings.tr(language, 'wallet_not_set')}',
-              style: TextStyle(
-                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-            trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-            onTap: () {
-              if (currentUser != null) {
-                final myAmount = activeBooklet?.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets) ?? 0.0;
-                _showWalletDialog(
+          _buildSectionCard(
+            context,
+            children: [
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.deepOrange.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.tune_rounded, color: Colors.deepOrange),
+                ),
+                title: Text(AppStrings.tr(language, 'category_budgets'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'category_budgets_desc')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => CategoryBudgetDialog.show(
                   context,
-                  myAmount,
-                  currentUser.uid,
-                  activeBooklet: activeBooklet,
-                  householdId: household?.id,
-                );
-              }
-            },
-          ),
-          const Divider(height: 32),
-
-          // Category Budgets & Spending Limits
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.deepOrange.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
+                  currentPeriodTransactions: transactions,
+                ),
               ),
-              child: const Icon(Icons.tune_rounded, color: Colors.deepOrange),
-            ),
-            title: Text(
-              AppStrings.tr(language, 'category_budgets'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(AppStrings.tr(language, 'category_budgets_desc')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => CategoryBudgetDialog.show(
-              context,
-              currentPeriodTransactions: transactions,
-            ),
-          ),
-          const Divider(height: 32),
-
-          // Recurring Expenses & Subscriptions
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.teal.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.autorenew, color: Colors.teal),
-            ),
-            title: Text(
-              AppStrings.tr(language, 'recurring_expenses'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(AppStrings.tr(language, 'recurring_desc')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const RecurringPage()),
-            ),
-          ),
-          const Divider(height: 32),
-
-          // Savings Goals & Piggy Bank
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.15),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.savings_outlined, color: Colors.green),
-            ),
-            title: Text(
-              AppStrings.tr(language, 'savings_goals'),
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(AppStrings.tr(language, 'savings_desc')),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SavingsPage()),
-            ),
-          ),
-          const Divider(height: 32),
-
-          // Household Settings
-          Text(
-            AppStrings.tr(language, 'household_settings'),
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Theme.of(context).colorScheme.primary),
-          ),
-          const SizedBox(height: 16),
-          if (household != null) ...[
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(AppStrings.tr(language, 'invite_code'), style: TextStyle(color: onSurfaceVariant)),
-              subtitle: Text(
-                household.inviteCode,
-                style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, letterSpacing: 4),
-              ),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  IconButton(
-                    icon: Icon(Icons.copy, color: Theme.of(context).colorScheme.primary),
-                    onPressed: () {
-                      Clipboard.setData(ClipboardData(text: household.inviteCode));
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(AppStrings.tr(language, 'invite_code_copied'))),
-                      );
-                    },
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
                   ),
-                  IconButton(
-                    icon: Icon(Icons.share, color: Theme.of(context).colorScheme.primary),
-                    onPressed: () {
-                      SharePlus.instance.share(
-                        ShareParams(
-                          text: 'Hey! Join my SplitLedger household to track our shared expenses.\n\nUse this invite code: ${household.inviteCode}',
+                  child: const Icon(Icons.autorenew, color: Colors.teal),
+                ),
+                title: Text(AppStrings.tr(language, 'recurring_expenses'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'recurring_desc')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RecurringPage()),
+                ),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.savings_outlined, color: Colors.green),
+                ),
+                title: Text(AppStrings.tr(language, 'savings_goals'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'savings_desc')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const SavingsPage()),
+                ),
+              ),
+            ],
+          ),
+
+          // -----------------------------------------------------------
+          // 4. App Preferences & Theme
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.tune_outlined,
+            title: AppStrings.tr(language, 'appearance_theme'),
+          ),
+          _buildSectionCard(
+            context,
+            children: [
+              // Language
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.translate, size: 18, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          AppStrings.tr(language, 'language'),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                         ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(AppStrings.tr(language, 'household_name')),
-              subtitle: Text(household.name),
-              trailing: Icon(Icons.edit, color: Theme.of(context).colorScheme.primary),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (dialogCtx) => _EditHouseholdNameDialog(
-                    householdId: household.id,
-                    initialName: household.name,
-                  ),
-                );
-              },
-            ),
-            const Divider(),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.auto_stories, color: Colors.blue),
-              ),
-              title: Text(AppStrings.tr(language, 'manage_booklets'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(
-                activeBooklet != null
-                    ? '${AppStrings.tr(language, 'active_booklet')}: ${activeBooklet.name}'
-                    : AppStrings.tr(language, 'manage_booklets_desc'),
-              ),
-              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
-              onTap: () => showBookletSwitchSheet(context),
-            ),
-          ] else ...[
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.auto_stories, color: Colors.blue),
-              ),
-              title: Text(AppStrings.tr(language, 'manage_booklets'), style: const TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: Text(
-                activeBooklet != null
-                    ? '${AppStrings.tr(language, 'active_booklet')}: ${activeBooklet.name}'
-                    : AppStrings.tr(language, 'manage_booklets_desc'),
-              ),
-              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
-              onTap: () => showBookletSwitchSheet(context),
-            ),
-          ],
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.history_toggle_off_rounded, color: Colors.redAccent),
-            ),
-            title: Text(AppStrings.tr(language, 'deleted_history'), style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text(AppStrings.tr(language, 'deleted_history_desc')),
-            trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DeletedHistoryPage()),
-              );
-            },
-          ),
-          const Divider(),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.help_outline),
-            title: Text(AppStrings.tr(language, 'help_support')),
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: Text(AppStrings.tr(language, 'help_support')),
-                  content: Text(
-                    language == AppLanguage.tamil
-                        ? 'SplitLedger உங்கள் செலவுகளைக் கண்காணிக்கவும் மாத இறுதியில் சமமாக கணக்கு முடிக்கவும் உதவுகிறது.\n\n'
-                          '• நீங்கள் செலவு செய்ததை சேர்க்க "பணம் செலவு" என்பதைப் பயன்படுத்தவும்.\n'
-                          '• பணம் பெற்றதை சேர்க்க "பணம் வரவு" என்பதைப் பயன்படுத்தவும்.\n'
-                          '• வாலட் மூலம் உங்கள் மொத்த கையிருப்பை அமைத்துக் கொள்ளலாம்.\n'
-                          '• அழைப்புக் குறியீட்டைப் பகிர்ந்து உங்கள் துணையை இணைக்கவும்.\n'
-                          '• வாட்ஸ்அப் நினைவூட்டல் மற்றும் UPI பே மூலம் நொடியில் பணத்தை மாற்றலாம்.'
-                        : 'SplitLedger helps your group track shared expenses and settle up monthly.\n\n'
-                          '• Add "You Paid" when you spend money.\n'
-                          '• Add "You Received" when you get money back.\n'
-                          '• Use Wallet to set your budget / cash balance.\n'
-                          '• Your Balance tracks your remaining wallet balance.\n'
-                          '• Share your invite code so your partner can join.\n'
-                          '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.\n'
-                          '• Use Data Storage & Backup to export and restore your ledger anytime.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(AppStrings.tr(language, 'done')),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<AppLanguage>(
+                        segments: AppLanguage.values.map((lang) {
+                          return ButtonSegment(
+                            value: lang,
+                            label: Text('${lang.flag} ${lang.label}', style: const TextStyle(fontSize: 12)),
+                          );
+                        }).toList(),
+                        selected: {language},
+                        onSelectionChanged: (set) {
+                          ref.read(languageControllerProvider.notifier).setLanguage(set.first);
+                        },
+                      ),
                     ),
                   ],
                 ),
-              );
-            },
+              ),
+              const Divider(height: 1),
+              // Appearance & Live Preview
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.tr(language, 'theme_preview'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.tr(language, 'theme_preview_desc'),
+                      style: TextStyle(fontSize: 12, color: onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 12),
+                    _LiveThemePreviewCard(
+                      themeSettings: themeSettings,
+                      language: language,
+                    ),
+                    const SizedBox(height: 16),
+                    // Theme Mode Selector
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<ThemeMode>(
+                        segments: [
+                          ButtonSegment(
+                            value: ThemeMode.system,
+                            icon: const Icon(Icons.brightness_auto, size: 16),
+                            label: Text(AppStrings.tr(language, 'theme_mode_system'), style: const TextStyle(fontSize: 11)),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.light,
+                            icon: const Icon(Icons.light_mode, size: 16),
+                            label: Text(AppStrings.tr(language, 'theme_mode_light'), style: const TextStyle(fontSize: 11)),
+                          ),
+                          ButtonSegment(
+                            value: ThemeMode.dark,
+                            icon: const Icon(Icons.dark_mode, size: 16),
+                            label: Text(AppStrings.tr(language, 'theme_mode_dark'), style: const TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                        selected: {themeSettings.themeMode},
+                        onSelectionChanged: (set) {
+                          ref.read(themeControllerProvider.notifier).setThemeMode(set.first);
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          AppStrings.tr(language, 'theme_accent_color'),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: onSurfaceVariant),
+                        ),
+                        Text(
+                          themeSettings.accentColor.getLocalizedLabel(language),
+                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: themeSettings.accentColor.color),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: AppThemeColor.values.map((colorItem) {
+                          final isSelected = themeSettings.accentColor == colorItem;
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 10.0, bottom: 4.0),
+                            child: _ThemeColorCard(
+                              colorItem: colorItem,
+                              isSelected: isSelected,
+                              language: language,
+                              onTap: () {
+                                ref.read(themeControllerProvider.notifier).setAccentColor(colorItem);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Privacy Mode
+              SwitchListTile(
+                secondary: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    preferences.isPrivacyMode ? Icons.visibility_off : Icons.visibility,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+                title: Text(AppStrings.tr(language, 'privacy_mode'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'privacy_mode_sub')),
+                value: preferences.isPrivacyMode,
+                onChanged: (val) {
+                  ref.read(appPreferencesProvider.notifier).togglePrivacyMode();
+                },
+              ),
+            ],
           ),
-          if (household != null)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.delete_forever, color: Colors.red),
-              title: Text(AppStrings.tr(language, 'clear_all_tx'), style: const TextStyle(color: Colors.red)),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(AppStrings.tr(language, 'clear_all_tx')),
-                    content: Text(AppStrings.tr(language, 'clear_all_tx_confirm')),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(AppStrings.tr(language, 'cancel')),
+
+          // -----------------------------------------------------------
+          // 5. Data, History & Backup
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.folder_shared_outlined,
+            title: AppStrings.tr(language, 'storage_backup_title'),
+          ),
+          _buildSectionCard(
+            context,
+            children: [
+              // Deleted History Tile (3-month audit log)
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.red.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.history_toggle_off_rounded, color: Colors.redAccent),
+                ),
+                title: Text(AppStrings.tr(language, 'deleted_history'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'deleted_history_desc')),
+                trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.primary),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const DeletedHistoryPage()),
+                  );
+                },
+              ),
+              const Divider(height: 1),
+              // Storage Mode Switch
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppStrings.tr(language, 'storage_mode'),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      AppStrings.tr(language, 'storage_mode_desc'),
+                      style: TextStyle(fontSize: 12, color: onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<StorageMode>(
+                        segments: [
+                          ButtonSegment(
+                            value: StorageMode.cloud,
+                            icon: const Icon(Icons.cloud_sync, size: 16),
+                            label: Text(AppStrings.tr(language, 'storage_cloud'), style: const TextStyle(fontSize: 11)),
+                          ),
+                          ButtonSegment(
+                            value: StorageMode.local,
+                            icon: const Icon(Icons.phone_android, size: 16),
+                            label: Text(AppStrings.tr(language, 'storage_local'), style: const TextStyle(fontSize: 11)),
+                          ),
+                        ],
+                        selected: {preferences.storageMode},
+                        onSelectionChanged: (set) {
+                          ref.read(appPreferencesProvider.notifier).setStorageMode(set.first);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('${AppStrings.tr(language, 'storage_mode')}: ${set.first.title}')),
+                          );
+                        },
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          final scaffoldMessenger = ScaffoldMessenger.of(context);
-                          final navigator = Navigator.of(context);
-                          navigator.pop();
-                          try {
-                            await ref.read(transactionRepositoryProvider).deleteAllTransactions(
-                                  household.id,
-                                  deletedByUid: currentUser?.uid,
-                                  deletedByName: currentUser?.displayName ?? 'Member',
+                    ),
+                  ],
+                ),
+              ),
+              const Divider(height: 1),
+              // Backup Export Tile
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.cloud_upload_outlined, color: Colors.blue),
+                ),
+                title: Text(AppStrings.tr(language, 'backup_export'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'backup_export_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () async {
+                  if (household != null) {
+                    final file = await BackupRestoreService.exportBackup(
+                      context: context,
+                      transactions: transactions,
+                      walletAmount: walletAmount,
+                      householdName: household.name,
+                      members: household.members,
+                    );
+                    if (file != null && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Backup ready and shared!'), backgroundColor: Colors.green),
+                      );
+                    }
+                  }
+                },
+              ),
+              const Divider(height: 1),
+              // Restore Import Tile
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.purple.withValues(alpha: 0.15), shape: BoxShape.circle),
+                  child: const Icon(Icons.cloud_download_outlined, color: Colors.deepPurple),
+                ),
+                title: Text(AppStrings.tr(language, 'restore_import'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: Text(AppStrings.tr(language, 'restore_import_sub')),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  if (household != null && currentUser != null) {
+                    _showRestoreDialog(
+                      context,
+                      household.id,
+                      currentUser.uid,
+                      targetBookletId: activeBooklet?.id,
+                      targetBookletName: activeBooklet?.name,
+                    );
+                  }
+                },
+              ),
+            ],
+          ),
+
+          // -----------------------------------------------------------
+          // 6. Help & Danger Zone
+          // -----------------------------------------------------------
+          _buildSectionHeader(
+            context,
+            icon: Icons.warning_amber_rounded,
+            title: AppStrings.tr(language, 'sec_danger_zone'),
+            color: Colors.red.shade700,
+          ),
+          _buildSectionCard(
+            context,
+            children: [
+              // Help & Support
+              ListTile(
+                leading: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.blue.withValues(alpha: 0.12), shape: BoxShape.circle),
+                  child: const Icon(Icons.help_outline, color: Colors.blue),
+                ),
+                title: Text(AppStrings.tr(language, 'help_support'), style: const TextStyle(fontWeight: FontWeight.bold)),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: Text(AppStrings.tr(language, 'help_support')),
+                      content: Text(
+                        language == AppLanguage.tamil
+                            ? 'SplitLedger உங்கள் செலவுகளைக் கண்காணிக்கவும் மாத இறுதியில் சமமாக கணக்கு முடிக்கவும் உதவுகிறது.\n\n'
+                              '• நீங்கள் செலவு செய்ததை சேர்க்க "பணம் செலவு" என்பதைப் பயன்படுத்தவும்.\n'
+                              '• பணம் பெற்றதை சேர்க்க "பணம் வரவு" என்பதைப் பயன்படுத்தவும்.\n'
+                              '• வாலட் மூலம் உங்கள் மொத்த கையிருப்பை அமைத்துக் கொள்ளலாம்.\n'
+                              '• அழைப்புக் குறியீட்டைப் பகிர்ந்து உங்கள் துணையை இணைக்கவும்.\n'
+                              '• வாட்ஸ்அப் நினைவூட்டல் மற்றும் UPI பே மூலம் நொடியில் பணத்தை மாற்றலாம்.'
+                            : 'SplitLedger helps your group track shared expenses and settle up monthly.\n\n'
+                              '• Add "You Paid" when you spend money.\n'
+                              '• Add "You Received" when you get money back.\n'
+                              '• Use Wallet to set your budget / cash balance.\n'
+                              '• Your Balance tracks your remaining wallet balance.\n'
+                              '• Share your invite code so your partner can join.\n'
+                              '• 1-Click WhatsApp Reminder & UPI Pay for effortless settlements.\n'
+                              '• Use Data Storage & Backup to export and restore your ledger anytime.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: Text(AppStrings.tr(language, 'done')),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+              if (household != null) ...[
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.red.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: const Icon(Icons.delete_forever, color: Colors.red),
+                  ),
+                  title: Text(AppStrings.tr(language, 'clear_all_tx'), style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(AppStrings.tr(language, 'clear_all_tx')),
+                        content: Text(AppStrings.tr(language, 'clear_all_tx_confirm')),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(AppStrings.tr(language, 'cancel')),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final scaffoldMessenger = ScaffoldMessenger.of(context);
+                              final navigator = Navigator.of(context);
+                              navigator.pop();
+                              try {
+                                await ref.read(transactionRepositoryProvider).deleteAllTransactions(
+                                      household.id,
+                                      deletedByUid: currentUser?.uid,
+                                      deletedByName: currentUser?.displayName ?? 'Member',
+                                    );
+                                scaffoldMessenger.showSnackBar(
+                                  const SnackBar(content: Text('Transactions cleared')),
                                 );
-                            scaffoldMessenger.showSnackBar(
-                              const SnackBar(content: Text('Transactions cleared')),
-                            );
-                          } catch (e) {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
-                        },
-                        child: Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.red)),
+                              } catch (e) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
+                            },
+                            child: Text(AppStrings.tr(language, 'delete'), style: const TextStyle(color: Colors.red)),
+                          ),
+                        ],
                       ),
-                    ],
+                    );
+                  },
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: Colors.orange.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: const Icon(Icons.exit_to_app, color: Colors.orange),
                   ),
-                );
-              },
-            ),
-          if (household != null)
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.exit_to_app, color: Colors.orange),
-              title: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange)),
-              onTap: () {
-                showDialog(
-                  context: context,
-                  builder: (context) => AlertDialog(
-                    title: Text(AppStrings.tr(language, 'leave_household')),
-                    content: Text(AppStrings.tr(language, 'leave_household_confirm')),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(context),
-                        child: Text(AppStrings.tr(language, 'cancel')),
+                  title: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: Text(AppStrings.tr(language, 'leave_household')),
+                        content: Text(AppStrings.tr(language, 'leave_household_confirm')),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: Text(AppStrings.tr(language, 'cancel')),
+                          ),
+                          TextButton(
+                            onPressed: () async {
+                              final scaffoldMessenger = ScaffoldMessenger.of(context);
+                              final navigator = Navigator.of(context);
+                              navigator.pop(); // close dialog
+                              try {
+                                final user = ref.read(authStateChangesProvider).asData?.value;
+                                if (user != null) {
+                                  await ref.read(householdRepositoryProvider).leaveHousehold(household.id, user.uid);
+                                  scaffoldMessenger.showSnackBar(
+                                    const SnackBar(content: Text('Left household')),
+                                  );
+                                  navigator.popUntil((route) => route.isFirst);
+                                }
+                              } catch (e) {
+                                scaffoldMessenger.showSnackBar(
+                                  SnackBar(content: Text('Error: $e')),
+                                );
+                              }
+                            },
+                            child: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange)),
+                          ),
+                        ],
                       ),
-                      TextButton(
-                        onPressed: () async {
-                          final scaffoldMessenger = ScaffoldMessenger.of(context);
-                          final navigator = Navigator.of(context);
-                          navigator.pop(); // close dialog
-                          try {
-                            final user = ref.read(authStateChangesProvider).asData?.value;
-                            if (user != null) {
-                              await ref.read(householdRepositoryProvider).leaveHousehold(household.id, user.uid);
-                              scaffoldMessenger.showSnackBar(
-                                const SnackBar(content: Text('Left household')),
-                              );
-                              navigator.popUntil((route) => route.isFirst);
-                            }
-                          } catch (e) {
-                            scaffoldMessenger.showSnackBar(
-                              SnackBar(content: Text('Error: $e')),
-                            );
-                          }
-                        },
-                        child: Text(AppStrings.tr(language, 'leave_household'), style: const TextStyle(color: Colors.orange)),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          const SizedBox(height: 24),
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 28),
           Center(
             child: Text(
               'SplitLedger ${AppVersion.displayVersion} • Legend Edition 🚀',
               style: TextStyle(fontSize: 12, color: onSurfaceVariant),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
         ],
       ),
     );
@@ -1037,10 +1158,14 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
 class _RestoreDialog extends ConsumerStatefulWidget {
   final String householdId;
   final String currentUid;
+  final String? targetBookletId;
+  final String? targetBookletName;
 
   const _RestoreDialog({
     required this.householdId,
     required this.currentUid,
+    this.targetBookletId,
+    this.targetBookletName,
   });
 
   @override
@@ -1081,6 +1206,7 @@ class _RestoreDialogState extends ConsumerState<_RestoreDialog> {
       currentUid: widget.currentUid,
       rawJson: jsonString,
       replaceExisting: _replaceExisting,
+      targetBookletId: widget.targetBookletId,
     );
 
     messenger.showSnackBar(
@@ -1108,6 +1234,35 @@ class _RestoreDialogState extends ConsumerState<_RestoreDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.targetBookletName != null) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.auto_stories, size: 16, color: Theme.of(context).colorScheme.primary),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Target Cashbook: ${widget.targetBookletName}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
             Text(
               AppStrings.tr(language, 'restore_import_sub'),
               style: TextStyle(fontSize: 13, color: Theme.of(context).colorScheme.onSurface),

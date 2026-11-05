@@ -30,6 +30,7 @@ class AppStrings {
       'total_received': 'Total Received',
       'total_paid': 'Total Paid',
       'your_balance': 'Your Balance',
+      'balance': 'Balance',
       'cash_in': 'Cash In',
       'cash_out': 'Cash Out',
       'you_paid': 'You Paid',
@@ -87,6 +88,10 @@ class AppStrings {
 
       // Settings & Appearance
       'appearance_theme': 'Appearance & Theme',
+      'sec_personal_security': 'Personal & Security',
+      'sec_financial_tools': 'Financial Management & Budgets',
+      'sec_danger_zone': 'Danger Zone',
+      'menu_history': 'Transaction History',
       'theme_preview': 'Live App Theme Preview',
       'theme_preview_desc': 'Preview how cards, balances, and buttons look across SplitLedger',
       'preview_sample_balance': 'Your Remaining Balance',
@@ -350,6 +355,7 @@ class AppStrings {
       'total_received': 'மொத்தம் பெற்றது',
       'total_paid': 'மொத்தம் செலுத்தியது',
       'your_balance': 'மீதி இருப்பு',
+      'balance': 'இருப்பு',
       'cash_in': 'பணம் வரவு',
       'cash_out': 'பணம் செலவு',
       'you_paid': 'நான் செலுத்தியது',
@@ -407,6 +413,10 @@ class AppStrings {
 
       // Settings & Appearance
       'appearance_theme': 'தோற்றம் & தீம்',
+      'sec_personal_security': 'தனிப்பட்ட கணக்கு & பாதுகாப்பு',
+      'sec_financial_tools': 'நிதி & திட்டமிடல் கருவிகள்',
+      'sec_danger_zone': 'அபாயப் பகுதி',
+      'menu_history': 'பரிவர்த்தனை வரலாறு',
       'theme_preview': 'நேரலை தீம் முன்னோட்டம்',
       'theme_preview_desc': 'கார்டுகள், இருப்பு மற்றும் பொத்தான்கள் எவ்வாறு தோன்றும் என்பதைப் பார்க்கவும்',
       'preview_sample_balance': 'உங்கள் மீதி இருப்பு',

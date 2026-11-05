@@ -280,8 +280,8 @@ void main() {
       expect(transferred.length, 2);
     });
 
-    test('Automatic transaction visibility & fallback logic when viewing active booklet', () {
-      final txLegacy1 = TransactionModel(
+    test('Cashbook data isolation strictly separates transactions by bookletId', () {
+      final txOldBooklet = TransactionModel(
         id: 'tx_old1',
         amount: 300.0,
         category: 'Food',
@@ -289,37 +289,35 @@ void main() {
         paidByName: 'User 1',
         date: DateTime.now(),
         createdAt: DateTime.now(),
-        bookletId: null, // Untagged legacy
+        bookletId: 'old', // Saved to 'old' booklet
       );
 
-      final txLegacy2 = TransactionModel(
-        id: 'tx_old2',
+      final txMainBooklet = TransactionModel(
+        id: 'tx_main1',
         amount: 700.0,
         category: 'Groceries',
         paidByUid: 'user_2',
         paidByName: 'User 2',
         date: DateTime.now(),
         createdAt: DateTime.now(),
-        bookletId: 'deleted_booklet_xyz', // Orphaned from a deleted booklet
+        bookletId: 'main_cashbook', // Saved to 'main_cashbook'
       );
 
-      final allTx = [txLegacy1, txLegacy2];
-      final validBookletIds = {'active_bk_1'};
+      final allTx = [txOldBooklet, txMainBooklet];
 
-      // Simulation of activeBookletTransactionsProvider:
-      final matchingTx = allTx.where((tx) => tx.bookletId == 'active_bk_1').toList();
-      expect(matchingTx.isEmpty, isTrue);
+      // 1. Viewing 'old' booklet: strictly only sees 'old' transactions
+      final oldMatching = allTx.where((tx) => tx.bookletId == 'old').toList();
+      expect(oldMatching.length, 1);
+      expect(oldMatching.first.id, 'tx_old1');
 
-      final unassigned = allTx.where((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId)).toList();
-      expect(unassigned.length, 2);
+      // 2. Viewing 'main_cashbook': strictly only sees 'main_cashbook' transactions
+      final mainMatching = allTx.where((tx) => tx.bookletId == 'main_cashbook').toList();
+      expect(mainMatching.length, 1);
+      expect(mainMatching.first.id, 'tx_main1');
 
-      // Verify that unassigned transactions are shown immediately to user
-      final visibleTransactions = matchingTx.isNotEmpty
-          ? allTx.where((tx) => tx.bookletId == 'active_bk_1' || tx.bookletId == null).toList()
-          : (unassigned.isNotEmpty ? unassigned : allTx);
-
-      expect(visibleTransactions.length, 2);
-      expect(visibleTransactions.map((t) => t.id).toList(), containsAll(['tx_old1', 'tx_old2']));
+      // 3. Newly created empty booklet: strictly sees 0 transactions (never leaks other booklets!)
+      final emptyMatching = allTx.where((tx) => tx.bookletId == 'new_empty_booklet').toList();
+      expect(emptyMatching.isEmpty, isTrue);
     });
 
     test('Bank passbook wallet deposit is incoming credit and isolated from split calculations', () {
