@@ -965,24 +965,53 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           }
 
-          // Calculate cumulative running passbook balance across active booklet transactions
-          final chronologicalTx = List<TransactionModel>.from(activeBookletTransactions)
-            ..sort((a, b) => a.date.compareTo(b.date));
+          // Calculate cumulative running passbook balance for the active view / filter
+          final txScope = _selectedUserFilter == 'all'
+              ? activeBookletTransactions
+              : activeBookletTransactions.where((t) =>
+                  _selectedUserFilter == 'me'
+                      ? t.paidByUid == currentUser.uid
+                      : t.paidByUid == _selectedUserFilter).toList();
+
+          final chronologicalTx = List<TransactionModel>.from(txScope)
+            ..sort((a, b) {
+              final cmp = a.date.compareTo(b.date);
+              if (cmp != 0) return cmp;
+              // If same timestamp, received/deposits come before paid/expenses
+              if (a.type != b.type) {
+                return a.type == TransactionType.received ? -1 : 1;
+              }
+              return a.id.compareTo(b.id);
+            });
 
           final runningBalanceMap = <String, double>{};
-          double runningBal = 0.0;
+          final hasWalletTx = txScope.any((tx) =>
+              tx.type == TransactionType.received &&
+              (tx.category.toLowerCase() == 'wallet' || tx.note?.toLowerCase() == 'wallet deposit'));
+
+          double currentRunningBal = (!hasWalletTx && displayedWalletAmount > 0)
+              ? displayedWalletAmount
+              : 0.0;
+
           for (final tx in chronologicalTx) {
             if (tx.type == TransactionType.received) {
-              runningBal += tx.amount;
+              currentRunningBal += tx.amount;
             } else {
-              runningBal -= tx.amount;
+              currentRunningBal -= tx.amount;
             }
-            runningBalanceMap[tx.id] = runningBal;
+            runningBalanceMap[tx.id] = currentRunningBal;
           }
 
           // Sort filtered transactions descending by date
           final sortedFiltered = List<TransactionModel>.from(filtered)
-            ..sort((a, b) => b.date.compareTo(a.date));
+            ..sort((a, b) {
+              final cmp = b.date.compareTo(a.date);
+              if (cmp != 0) return cmp;
+              if (a.type != b.type) {
+                return a.type == TransactionType.paid ? -1 : 1;
+              }
+              return b.id.compareTo(a.id);
+            });
 
           // Group by Date: e.g. "Wed, 04 Nov 2026"
           final groupedTransactions = <String, List<TransactionModel>>{};
@@ -1321,20 +1350,26 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
-                                                  _currencyFormat.format(tx.amount),
+                                                  preferences.isPrivacyMode
+                                                      ? '${isPaid ? '-' : '+'} ₹••••'
+                                                      : '${isPaid ? '-' : '+'} ${_currencyFormat.format(tx.amount)}',
                                                   style: TextStyle(
                                                     color: color,
                                                     fontWeight: FontWeight.bold,
                                                     fontSize: 15,
+                                                    letterSpacing: 0.2,
                                                   ),
                                                   textAlign: TextAlign.right,
                                                 ),
                                                 const SizedBox(height: 2),
                                                 Text(
-                                                  '${AppStrings.tr(language, 'balance')} ${_currencyFormat.format(runningBal)}',
+                                                  preferences.isPrivacyMode
+                                                      ? '${AppStrings.tr(language, 'balance')}: ₹••••'
+                                                      : '${AppStrings.tr(language, 'balance')}: ${_currencyFormat.format(runningBal)}',
                                                   style: TextStyle(
                                                     fontSize: 11,
-                                                    color: onSurfaceVariant,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: runningBal >= 0 ? onSurfaceVariant : Colors.red.shade700,
                                                   ),
                                                   textAlign: TextAlign.right,
                                                 ),
