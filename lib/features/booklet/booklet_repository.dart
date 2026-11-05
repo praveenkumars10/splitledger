@@ -67,6 +67,11 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
 
   // 4. Return the first non-closed booklet or first booklet
   if (booklets.isNotEmpty) {
+    // If an 'Old' booklet exists, prioritize it as the default active booklet
+    final oldMatch = booklets.where((b) => b.name.trim().toLowerCase() == 'old' || b.name.trim().toLowerCase().startsWith('old')).firstOrNull;
+    if (oldMatch != null && !oldMatch.isClosed) {
+      return oldMatch;
+    }
     return booklets.firstWhere((b) => !b.isClosed, orElse: () => booklets.first);
   }
 
@@ -428,5 +433,63 @@ class BookletRepository {
     }
 
     return transferredCount;
+  }
+
+  /// Finds or creates a booklet named 'Old', transfers all household transactions into it,
+  /// and sets it as the active booklet.
+  Future<BookletModel> transferAllTransactionsToOldBooklet({
+    required String householdId,
+    required String currentUid,
+    required String currentName,
+  }) async {
+    final bookletsSnap = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('booklets')
+        .get();
+
+    BookletModel? oldBooklet;
+    for (final doc in bookletsSnap.docs) {
+      final b = BookletModel.fromMap(doc.data(), doc.id);
+      final nameLower = b.name.trim().toLowerCase();
+      if (nameLower == 'old' || nameLower == 'old booklet' || nameLower.startsWith('old ')) {
+        oldBooklet = b;
+        break;
+      }
+    }
+
+    // If no booklet named 'Old' exists, create one
+    if (oldBooklet == null) {
+      final docRef = _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('booklets')
+          .doc();
+
+      oldBooklet = BookletModel(
+        id: docRef.id,
+        name: 'Old',
+        startDate: DateTime.now(),
+        createdByUid: currentUid,
+        createdByName: currentName,
+        createdAt: DateTime.now(),
+        note: 'Previous transactions transferred here',
+      );
+
+      await docRef.set(oldBooklet.toMap());
+    }
+
+    // Set as active booklet for the household
+    await _firestore.collection('households').doc(householdId).update({
+      'activeBookletId': oldBooklet.id,
+    });
+
+    // Transfer all transactions in this household to the Old booklet
+    await transferAllTransactionsToBooklet(
+      householdId: householdId,
+      targetBookletId: oldBooklet.id,
+    );
+
+    return oldBooklet;
   }
 }

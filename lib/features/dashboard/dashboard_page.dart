@@ -175,14 +175,17 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final groupMembers = household?.members.map((m) => (uid: m.uid, name: shortName(m.name))).toList() ?? [];
 
-    if (!_didAutoConsolidate && household != null && activeBooklet != null) {
+    if (!_didAutoConsolidate && household != null && currentUser != null) {
       _didAutoConsolidate = true;
       Future.microtask(() async {
         try {
-          await ref.read(bookletRepositoryProvider).transferAllTransactionsToBooklet(
+          final oldBooklet = await ref.read(bookletRepositoryProvider).transferAllTransactionsToOldBooklet(
                 householdId: household.id,
-                targetBookletId: activeBooklet.id,
+                currentUid: currentUser.uid,
+                currentName: currentUser.displayName ?? 'User',
               );
+          ref.read(selectedBookletFilterProvider.notifier).setFilter(oldBooklet.id);
+          await ref.read(appPreferencesProvider.notifier).setActiveBookletId(oldBooklet.id);
         } catch (_) {}
       });
     }
