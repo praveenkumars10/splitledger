@@ -73,7 +73,7 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
   // 5. Default virtual fallback if no booklets are created yet
   return BookletModel(
     id: 'default',
-    name: 'Cash Book',
+    name: 'Cashbook 1',
     startDate: household?.createdAt ?? DateTime.now(),
     createdByUid: '',
     createdByName: 'System',
@@ -174,7 +174,7 @@ class BookletRepository {
 
     final booklet = BookletModel(
       id: docRef.id,
-      name: name.trim().isEmpty ? 'Cashbook' : name.trim(),
+      name: name.trim().isEmpty ? 'Cashbook 1' : name.trim(),
       startDate: startDate,
       openingBalance: openingBalance,
       createdByUid: createdByUid,
@@ -224,6 +224,49 @@ class BookletRepository {
     }
 
     return booklet;
+  }
+
+  /// Resets cashbooks for a household to default sequential "Cashbook 1", "Cashbook 2", "Cashbook 3".
+  Future<void> resetToDefaultCashbooks(String householdId, String uid, String userName) async {
+    final existingSnap = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('booklets')
+        .get();
+
+    for (final doc in existingSnap.docs) {
+      await doc.reference.delete();
+    }
+
+    final now = DateTime.now();
+    String? firstId;
+    for (int i = 1; i <= 3; i++) {
+      final docRef = _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('booklets')
+          .doc();
+      if (i == 1) firstId = docRef.id;
+
+      await docRef.set({
+        'name': 'Cashbook $i',
+        'startDate': Timestamp.fromDate(now),
+        'createdAt': Timestamp.fromDate(now),
+        'createdByUid': uid,
+        'createdByName': userName,
+        'openingBalance': 0.0,
+        'memberWallets': {},
+        'isClosed': false,
+        'endDate': null,
+        'note': null,
+      });
+    }
+
+    if (firstId != null) {
+      await _firestore.collection('households').doc(householdId).update({
+        'activeBookletId': firstId,
+      });
+    }
   }
 
   Future<void> setMemberWallet({

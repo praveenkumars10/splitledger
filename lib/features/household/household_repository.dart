@@ -20,17 +20,41 @@ class HouseholdRepository {
 
   Future<Household> createHousehold(String uid, String userName) async {
     final inviteCode = _generateInviteCode();
-    
+    final now = DateTime.now();
+
     final householdRef = _firestore.collection('households').doc();
+    final b1Ref = householdRef.collection('booklets').doc();
+    final b2Ref = householdRef.collection('booklets').doc();
+    final b3Ref = householdRef.collection('booklets').doc();
+
     final household = Household(
       id: householdRef.id,
       name: 'Household',
       members: [HouseholdMember(uid: uid, name: userName)],
-      createdAt: DateTime.now(),
+      createdAt: now,
       inviteCode: inviteCode,
+      activeBookletId: b1Ref.id,
     );
 
-    await householdRef.set(household.toMap());
+    final batch = _firestore.batch();
+    batch.set(householdRef, household.toMap());
+    for (int i = 1; i <= 3; i++) {
+      final bRef = i == 1 ? b1Ref : (i == 2 ? b2Ref : b3Ref);
+      batch.set(bRef, {
+        'name': 'Cashbook $i',
+        'startDate': Timestamp.fromDate(now),
+        'createdAt': Timestamp.fromDate(now),
+        'createdByUid': uid,
+        'createdByName': userName,
+        'openingBalance': 0.0,
+        'memberWallets': {},
+        'isClosed': false,
+        'endDate': null,
+        'note': null,
+      });
+    }
+
+    await batch.commit();
     return household;
   }
 

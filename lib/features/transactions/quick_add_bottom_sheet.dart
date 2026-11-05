@@ -130,7 +130,8 @@ class _QuickAddBottomSheetState extends ConsumerState<QuickAddBottomSheet> {
         date: DateTime.now(),
         type: _type,
         createdAt: DateTime.now(),
-        bookletId: ref.read(activeBookletProvider)?.id,
+        bookletId: ref.read(activeBookletProvider)?.id ??
+            ref.read(bookletsStreamProvider).asData?.value.firstOrNull?.id,
       );
 
       await ref.read(transactionRepositoryProvider).addTransaction(household.id, tx);

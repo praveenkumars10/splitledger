@@ -72,7 +72,7 @@ class WalletRepository {
 
         if (!snap.exists) {
           await bookletRef.set({
-            'name': 'Cash Book',
+            'name': 'Cashbook 1',
             'startDate': Timestamp.now(),
             'createdByUid': uid,
             'createdByName': userName ?? 'Member',

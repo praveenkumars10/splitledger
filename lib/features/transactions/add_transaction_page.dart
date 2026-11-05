@@ -293,7 +293,9 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
         recurrence: _selectedRecurrence,
         recurrenceEndDate: _recurrenceEndDate,
         nextOccurrence: _selectedRecurrence == RecurrenceInterval.none ? null : TransactionModel.calculateNextOccurrence(_selectedDate, _selectedRecurrence),
-        bookletId: ref.read(activeBookletProvider)?.id ?? widget.transaction?.bookletId,
+        bookletId: ref.read(activeBookletProvider)?.id ??
+            ref.read(bookletsStreamProvider).asData?.value.firstOrNull?.id ??
+            widget.transaction?.bookletId,
       );
 
       if (_isEditing) {
@@ -317,6 +319,7 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final language = ref.watch(languageControllerProvider);
+    final activeBooklet = ref.watch(activeBookletProvider);
 
     if (!_initialized && household != null && currentUser != null) {
       _selectedUser = household.members.where((m) => m.uid == currentUser.uid).firstOrNull;
@@ -346,6 +349,49 @@ class _AddTransactionPageState extends ConsumerState<AddTransactionPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Cashbook Indicator
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.menu_book_rounded, size: 18, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Cashbook: ',
+                          style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.onSurfaceVariant),
+                        ),
+                        Expanded(
+                          child: Text(
+                            activeBooklet?.name ?? 'Cashbook 1',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: () => showBookletSwitchSheet(context),
+                          child: Text(
+                            AppStrings.tr(language, 'change'),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Theme.of(context).colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                   // User selection
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),

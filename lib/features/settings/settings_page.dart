@@ -855,8 +855,13 @@ class SettingsPage extends ConsumerWidget {
                                       deletedByUid: currentUser?.uid,
                                       deletedByName: currentUser?.displayName ?? 'Member',
                                     );
+                                await ref.read(bookletRepositoryProvider).resetToDefaultCashbooks(
+                                      household.id,
+                                      currentUser?.uid ?? '',
+                                      currentUser?.displayName ?? 'Member',
+                                    );
                                 scaffoldMessenger.showSnackBar(
-                                  const SnackBar(content: Text('Transactions cleared')),
+                                  const SnackBar(content: Text('All transactions cleared and cashbooks reset (Cashbook 1, 2, 3)')),
                                 );
                               } catch (e) {
                                 scaffoldMessenger.showSnackBar(

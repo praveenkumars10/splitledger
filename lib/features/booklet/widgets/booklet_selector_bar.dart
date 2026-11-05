@@ -544,7 +544,8 @@ class _CreateBookletDialogState extends ConsumerState<_CreateBookletDialog> {
   void initState() {
     super.initState();
     _startDate = DateTime.now();
-    _nameController.text = 'Cashbook - ${DateFormat('dd MMM').format(_startDate)}';
+    final booklets = ref.read(bookletsStreamProvider).asData?.value ?? [];
+    _nameController.text = 'Cashbook ${booklets.length + 1}';
   }
 
   @override
@@ -627,7 +628,9 @@ class _CreateBookletDialogState extends ConsumerState<_CreateBookletDialog> {
   Widget build(BuildContext context) {
     final language = ref.watch(languageControllerProvider);
 
-    final presets = ['Daily Cashbook', 'Trip', 'Project', 'Home Expense'];
+    final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+    final nextNum = booklets.length + 1;
+    final presets = ['Cashbook $nextNum', 'Cashbook 1', 'Cashbook 2', 'Trip', 'Office'];
 
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -677,7 +680,11 @@ class _CreateBookletDialogState extends ConsumerState<_CreateBookletDialog> {
                   label: Text(p, style: const TextStyle(fontSize: 11)),
                   onPressed: () {
                     setState(() {
-                      _nameController.text = '$p - ${_dateFormat.format(_startDate)}';
+                      if (p.startsWith('Cashbook') || p == 'Office') {
+                        _nameController.text = p;
+                      } else {
+                        _nameController.text = '$p - ${_dateFormat.format(_startDate)}';
+                      }
                     });
                   },
                 );
