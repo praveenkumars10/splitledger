@@ -49,7 +49,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final _monthFormat = DateFormat('MMM yyyy');
   final _dateFormat = DateFormat('dd MMM, hh:mm a');
-  bool _didAutoConsolidate = false;
+  bool _isAutoConsolidating = false;
 
   bool get _isMonthlyFilter => _selectedTimeFilter == 'Monthly';
   bool get _hasActiveFilters => _keyword != null || _rangeStart != null || _minAmount != null || _maxAmount != null;
@@ -175,19 +175,60 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
     final groupMembers = household?.members.map((m) => (uid: m.uid, name: shortName(m.name))).toList() ?? [];
 
-    if (!_didAutoConsolidate && household != null && currentUser != null) {
-      _didAutoConsolidate = true;
-      Future.microtask(() async {
-        try {
-          final oldBooklet = await ref.read(bookletRepositoryProvider).transferAllTransactionsToOldBooklet(
-                householdId: household.id,
-                currentUid: currentUser.uid,
-                currentName: currentUser.displayName ?? 'User',
-              );
-          ref.read(selectedBookletFilterProvider.notifier).setFilter(oldBooklet.id);
-          await ref.read(appPreferencesProvider.notifier).setActiveBookletId(oldBooklet.id);
-        } catch (_) {}
-      });
+    if (!_isAutoConsolidating && household != null && currentUser != null) {
+      final allTx = ref.watch(currentTransactionsProvider).asData?.value;
+      if (allTx != null && allTx.isNotEmpty) {
+        final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
+        final validBookletIds = booklets.map((b) => b.id).toSet();
+
+        // 1. If no booklets exist in Firestore, create the initial Main Cashbook and transfer all transactions into it
+        if (booklets.isEmpty) {
+          _isAutoConsolidating = true;
+          Future.microtask(() async {
+            try {
+              final newBooklet = await ref.read(bookletRepositoryProvider).createBooklet(
+                    householdId: household.id,
+                    name: 'Main Cashbook',
+                    startDate: household.createdAt,
+                    createdByUid: currentUser.uid,
+                    createdByName: currentUser.displayName ?? 'User',
+                  );
+              await ref.read(bookletRepositoryProvider).transferAllTransactionsToBooklet(
+                    householdId: household.id,
+                    targetBookletId: newBooklet.id,
+                  );
+              ref.read(selectedBookletFilterProvider.notifier).setFilter(newBooklet.id);
+              await ref.read(appPreferencesProvider.notifier).setActiveBookletId(newBooklet.id);
+            } catch (_) {
+            } finally {
+              if (mounted) _isAutoConsolidating = false;
+            }
+          });
+        } else if (activeBooklet != null && activeBooklet.id != 'default') {
+          // 2. If booklets exist, consolidate untagged or orphaned transactions to active booklet
+          final hasUntaggedOrOrphaned = allTx.any((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId));
+          final singleBookletMismatch = booklets.length <= 1 && allTx.any((tx) => tx.bookletId != activeBooklet.id);
+
+          if (hasUntaggedOrOrphaned || singleBookletMismatch) {
+            _isAutoConsolidating = true;
+            Future.microtask(() async {
+              try {
+                await ref.read(bookletRepositoryProvider).autoConsolidateTransactions(
+                      householdId: household.id,
+                      targetBookletId: activeBooklet.id,
+                      forceAll: booklets.length <= 1,
+                    );
+                if (household.activeBookletId != activeBooklet.id) {
+                  await ref.read(bookletRepositoryProvider).setActiveBooklet(household.id, activeBooklet.id);
+                }
+              } catch (_) {
+              } finally {
+                if (mounted) _isAutoConsolidating = false;
+              }
+            });
+          }
+        }
+      }
     }
 
     return Scaffold(

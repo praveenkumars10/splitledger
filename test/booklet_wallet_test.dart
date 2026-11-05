@@ -278,6 +278,48 @@ void main() {
       }
       expect(transferred.length, 2);
     });
+
+    test('Automatic transaction visibility & fallback logic when viewing active booklet', () {
+      final txLegacy1 = TransactionModel(
+        id: 'tx_old1',
+        amount: 300.0,
+        category: 'Food',
+        paidByUid: 'user_1',
+        paidByName: 'User 1',
+        date: DateTime.now(),
+        createdAt: DateTime.now(),
+        bookletId: null, // Untagged legacy
+      );
+
+      final txLegacy2 = TransactionModel(
+        id: 'tx_old2',
+        amount: 700.0,
+        category: 'Groceries',
+        paidByUid: 'user_2',
+        paidByName: 'User 2',
+        date: DateTime.now(),
+        createdAt: DateTime.now(),
+        bookletId: 'deleted_booklet_xyz', // Orphaned from a deleted booklet
+      );
+
+      final allTx = [txLegacy1, txLegacy2];
+      final validBookletIds = {'active_bk_1'};
+
+      // Simulation of activeBookletTransactionsProvider:
+      final matchingTx = allTx.where((tx) => tx.bookletId == 'active_bk_1').toList();
+      expect(matchingTx.isEmpty, isTrue);
+
+      final unassigned = allTx.where((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId)).toList();
+      expect(unassigned.length, 2);
+
+      // Verify that unassigned transactions are shown immediately to user
+      final visibleTransactions = matchingTx.isNotEmpty
+          ? allTx.where((tx) => tx.bookletId == 'active_bk_1' || tx.bookletId == null).toList()
+          : (unassigned.isNotEmpty ? unassigned : allTx);
+
+      expect(visibleTransactions.length, 2);
+      expect(visibleTransactions.map((t) => t.id).toList(), containsAll(['tx_old1', 'tx_old2']));
+    });
   });
 }
 

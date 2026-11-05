@@ -67,11 +67,6 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
 
   // 4. Return the first non-closed booklet or first booklet
   if (booklets.isNotEmpty) {
-    // If an 'Old' booklet exists, prioritize it as the default active booklet
-    final oldMatch = booklets.where((b) => b.name.trim().toLowerCase() == 'old' || b.name.trim().toLowerCase().startsWith('old')).firstOrNull;
-    if (oldMatch != null && !oldMatch.isClosed) {
-      return oldMatch;
-    }
     return booklets.firstWhere((b) => !b.isClosed, orElse: () => booklets.first);
   }
 
@@ -95,13 +90,34 @@ final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref)
   final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
   final isDefaultOrOnly = activeBooklet.id == 'default' || booklets.isEmpty || (booklets.length == 1 && booklets.first.id == activeBooklet.id);
 
-  return allTx.where((tx) {
-    if (tx.bookletId == activeBooklet.id) return true;
-    // Allow legacy / untagged transactions or if single cashbook active
-    if (tx.bookletId == null) return true;
-    if (isDefaultOrOnly) return true;
-    return false;
-  }).toList();
+  if (isDefaultOrOnly) {
+    return allTx;
+  }
+
+  // Transactions belonging to this booklet
+  final matchingTx = allTx.where((tx) => tx.bookletId == activeBooklet.id).toList();
+
+  if (matchingTx.isNotEmpty) {
+    // Return transactions for this booklet plus any untagged legacy transactions
+    return allTx.where((tx) => tx.bookletId == activeBooklet.id || tx.bookletId == null).toList();
+  }
+
+  // If this active booklet has 0 matching transactions:
+  // Check if there are untagged transactions or orphaned transactions
+  final validBookletIds = booklets.map((b) => b.id).toSet();
+  final unassigned = allTx.where((tx) => tx.bookletId == null || !validBookletIds.contains(tx.bookletId)).toList();
+  if (unassigned.isNotEmpty) {
+    return unassigned;
+  }
+
+  // Check if other valid booklets own the transactions in allTx.
+  final otherBookletsWithTx = allTx.where((tx) => tx.bookletId != null && validBookletIds.contains(tx.bookletId));
+  if (otherBookletsWithTx.isEmpty) {
+    // No other valid booklet owns transactions yet; return allTx so transactions are immediately visible!
+    return allTx;
+  }
+
+  return [];
 });
 
 class BookletRepository {
@@ -396,6 +412,59 @@ class BookletRepository {
     if (opCount > 0) {
       await batch.commit();
     }
+  }
+
+  /// Automatically consolidates untagged transactions (bookletId == null)
+  /// or orphaned transactions to the target booklet.
+  /// If [forceAll] is true (e.g. single booklet), transfers all transactions.
+  Future<int> autoConsolidateTransactions({
+    required String householdId,
+    required String targetBookletId,
+    bool forceAll = false,
+  }) async {
+    final snapshot = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('transactions')
+        .get();
+
+    final bookletsSnap = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('booklets')
+        .get();
+
+    final validBookletIds = bookletsSnap.docs.map((d) => d.id).toSet();
+
+    WriteBatch batch = _firestore.batch();
+    int transferredCount = 0;
+    int batchOps = 0;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final currentBookletId = data['bookletId'];
+
+      final bool needsTransfer = forceAll
+          ? (currentBookletId != targetBookletId)
+          : (currentBookletId == null || !validBookletIds.contains(currentBookletId));
+
+      if (needsTransfer) {
+        batch.update(doc.reference, {'bookletId': targetBookletId});
+        transferredCount++;
+        batchOps++;
+        if (batchOps >= 400) {
+          await batch.commit();
+          batch = _firestore.batch();
+          batchOps = 0;
+        }
+      }
+    }
+
+    if (batchOps > 0) {
+      await batch.commit();
+    }
+
+    return transferredCount;
   }
 
   /// Transfers/migrates all household transactions to a specific target booklet.
