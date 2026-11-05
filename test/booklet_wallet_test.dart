@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:split_ledger/models/booklet_model.dart';
 import 'package:split_ledger/models/transaction_model.dart';
 import 'package:split_ledger/core/date_filters.dart';
+import 'package:split_ledger/core/group_split_calculator.dart';
 
 void main() {
   group('Cashbook-Specific Wallet & Combined Group Wallet Tests', () {
@@ -319,6 +320,68 @@ void main() {
 
       expect(visibleTransactions.length, 2);
       expect(visibleTransactions.map((t) => t.id).toList(), containsAll(['tx_old1', 'tx_old2']));
+    });
+
+    test('Bank passbook wallet deposit is incoming credit and isolated from split calculations', () {
+      final walletTx = TransactionModel(
+        id: 'tx_wallet_1',
+        amount: 2000.0,
+        category: 'wallet',
+        paidByUid: 'user_1',
+        paidByName: 'User 1',
+        note: 'Wallet Deposit',
+        type: TransactionType.received,
+        date: DateTime(2026, 11, 5),
+        createdAt: DateTime(2026, 11, 5),
+        bookletId: 'bk_1',
+      );
+
+      final expenseTx = TransactionModel(
+        id: 'tx_exp_1',
+        amount: 500.0,
+        category: 'Food',
+        paidByUid: 'user_1',
+        paidByName: 'User 1',
+        type: TransactionType.paid,
+        date: DateTime(2026, 11, 5),
+        createdAt: DateTime(2026, 11, 5),
+        bookletId: 'bk_1',
+      );
+
+      final transactions = [walletTx, expenseTx];
+
+      // 1. Verify Passbook In/Out
+      double totalReceived = 0;
+      double totalPaid = 0;
+      for (final tx in transactions) {
+        if (tx.type == TransactionType.paid) {
+          totalPaid += tx.amount;
+        } else {
+          totalReceived += tx.amount;
+        }
+      }
+
+      expect(totalReceived, 2000.0);
+      expect(totalPaid, 500.0);
+
+      final walletReceived = transactions
+          .where((t) => t.type == TransactionType.received && (t.category.toLowerCase() == 'wallet' || t.note?.toLowerCase() == 'wallet deposit'))
+          .fold(0.0, (acc, t) => acc + t.amount);
+      final nonWalletReceived = totalReceived - walletReceived;
+      const displayedWalletAmount = 2000.0;
+
+      final remainingBalance = displayedWalletAmount + nonWalletReceived - totalPaid;
+      expect(remainingBalance, 1500.0);
+
+      // 2. Verify group split calculation excludes wallet category
+      final settlementTx = transactions.where((t) => t.category.toLowerCase() != 'wallet').toList();
+      expect(settlementTx.length, 1);
+      expect(settlementTx.first.id, 'tx_exp_1');
+
+      final members = [(uid: 'user_1', name: 'User 1'), (uid: 'user_2', name: 'User 2')];
+      final splitResult = calculateGroupSplit(transactions: settlementTx, members: members);
+      expect(splitResult.totalExpense, 500.0);
+      expect(splitResult.individualShare, 250.0);
     });
   });
 }

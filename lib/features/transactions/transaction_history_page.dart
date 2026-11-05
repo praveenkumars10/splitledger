@@ -462,7 +462,12 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                     final isPaid = tx.type == TransactionType.paid;
                     final amountColor = isPaid ? Colors.red.shade700 : Colors.green.shade700;
                     final sign = isPaid ? '-' : '+';
-                    final title = tx.note?.isNotEmpty == true ? tx.note! : (tx.category.isEmpty ? AppStrings.tr(language, 'other') : tx.category[0].toUpperCase() + tx.category.substring(1));
+                    final isWallet = tx.category.toLowerCase() == 'wallet';
+                    final title = isWallet
+                        ? AppStrings.tr(language, 'wallet_incoming')
+                        : (tx.note?.isNotEmpty == true
+                            ? tx.note!
+                            : (tx.category.isEmpty ? AppStrings.tr(language, 'other') : tx.category[0].toUpperCase() + tx.category.substring(1)));
 
                     return Dismissible(
                       key: ValueKey(tx.id),
@@ -600,13 +605,35 @@ class _TransactionHistoryPageState extends ConsumerState<TransactionHistoryPage>
                           '${isMe ? AppStrings.tr(language, "you") : shortName(tx.paidByName)} • ${_dateFormat.format(tx.date)}',
                           style: TextStyle(fontSize: 12, color: onSurfaceVariant),
                         ),
-                        trailing: Text(
-                          '$sign${_currencyFormat.format(tx.amount)}',
-                          style: TextStyle(
-                            color: amountColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              '$sign${_currencyFormat.format(tx.amount)}',
+                              style: TextStyle(
+                                color: amountColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 0.5),
+                              decoration: BoxDecoration(
+                                color: amountColor.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                              child: Text(
+                                isPaid ? 'DR' : 'CR',
+                                style: TextStyle(
+                                  color: amountColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         onTap: () => _showTransactionDetails(tx, isMe, tx.paidByName),
                       ),

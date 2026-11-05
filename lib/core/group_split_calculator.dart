@@ -82,7 +82,7 @@ GroupSplitResult calculateGroupSplit({
       for (final e in txShares.entries) {
         shareMap[e.key] = (shareMap[e.key] ?? 0) + e.value;
       }
-    } else if (tx.type == TransactionType.received) {
+    } else if (tx.type == TransactionType.received && tx.category.toLowerCase() != 'wallet') {
       // Treat "received" as an internal settlement.
       if (tx.counterpartyUid != null && tx.counterpartyUid!.isNotEmpty && paidMap.containsKey(tx.counterpartyUid)) {
         // Direct settlement: receiver (paidByUid) drops, payer (counterpartyUid) gains credit

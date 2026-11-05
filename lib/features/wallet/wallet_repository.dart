@@ -51,6 +51,7 @@ class WalletRepository {
     double amount, {
     String? householdId,
     String? bookletId,
+    String? userName,
   }) async {
     // 1. If cashbook context is present, save under the specific cashbook document
     if (householdId != null && bookletId != null && bookletId.isNotEmpty) {
@@ -74,7 +75,7 @@ class WalletRepository {
             'name': 'Main Cashbook',
             'startDate': Timestamp.now(),
             'createdByUid': uid,
-            'createdByName': 'Member',
+            'createdByName': userName ?? 'Member',
             'createdAt': Timestamp.now(),
             'openingBalance': amount,
             'memberWallets': wallets,
@@ -90,18 +91,84 @@ class WalletRepository {
       }
 
       // 2. Save under user doc specifically for this booklet (isolated per booklet)
-      await _firestore.collection('users').doc(uid).set({
-        'bookletWallets': {
-          bookletId: amount,
-        },
-        'walletUpdatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      try {
+        await _firestore.collection('users').doc(uid).set({
+          'bookletWallets': {
+            bookletId: amount,
+          },
+          'walletUpdatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (_) {}
+
+      // 3. Create or update the Wallet Incoming transaction entry (Bank passbook style!)
+      try {
+        await ensureWalletTransaction(
+          householdId: householdId,
+          bookletId: bookletId,
+          uid: uid,
+          amount: amount,
+          userName: userName,
+        );
+      } catch (e) {
+        // ignore: avoid_print
+        print('Error ensuring wallet transaction: $e');
+      }
     } else {
-      // 3. Fallback/standalone global wallet
+      // Fallback/standalone global wallet
       await _firestore.collection('users').doc(uid).set({
         'walletAmount': amount,
         'walletUpdatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
+    }
+  }
+
+  /// Ensures an incoming transaction entry exists for the wallet amount (Bank Passbook credit entry).
+  Future<void> ensureWalletTransaction({
+    required String householdId,
+    required String bookletId,
+    required String uid,
+    required double amount,
+    String? userName,
+  }) async {
+    final txCollection = _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('transactions');
+
+    final existingSnap = await txCollection
+        .where('bookletId', isEqualTo: bookletId)
+        .where('paidByUid', isEqualTo: uid)
+        .where('category', isEqualTo: 'wallet')
+        .get();
+
+    if (amount > 0) {
+      if (existingSnap.docs.isNotEmpty) {
+        // Update the existing entry amount
+        await existingSnap.docs.first.reference.update({
+          'amount': amount,
+          'type': 'received',
+          'note': 'Wallet Deposit',
+          if (userName != null && userName.isNotEmpty) 'paidByName': userName,
+        });
+      } else {
+        // Create new incoming wallet transaction
+        await txCollection.add({
+          'amount': amount,
+          'category': 'wallet',
+          'paidByUid': uid,
+          'paidByName': userName ?? 'Member',
+          'note': 'Wallet Deposit',
+          'type': 'received',
+          'date': Timestamp.now(),
+          'createdAt': Timestamp.now(),
+          'bookletId': bookletId,
+        });
+      }
+    } else {
+      // If amount is 0, delete any existing wallet transaction
+      for (final doc in existingSnap.docs) {
+        await doc.reference.delete();
+      }
     }
   }
 }

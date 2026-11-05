@@ -48,7 +48,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
 
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final _monthFormat = DateFormat('MMM yyyy');
-  final _dateFormat = DateFormat('dd MMM, hh:mm a');
   bool _isAutoConsolidating = false;
 
   bool get _isMonthlyFilter => _selectedTimeFilter == 'Monthly';
@@ -226,6 +225,42 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 if (mounted) _isAutoConsolidating = false;
               }
             });
+          }
+
+          // 3. Ensure existing wallet amounts have an incoming transaction (Bank passbook credit entry)
+          final hasMissingWalletTx = activeBooklet.memberWallets.entries.any((entry) {
+            final uid = entry.key;
+            final amt = entry.value;
+            if (amt <= 0) return false;
+            return !allTx.any((tx) =>
+                tx.bookletId == activeBooklet.id &&
+                tx.paidByUid == uid &&
+                tx.type == TransactionType.received &&
+                tx.category.toLowerCase() == 'wallet');
+          });
+
+          if (hasMissingWalletTx && !_isAutoConsolidating) {
+            for (final entry in activeBooklet.memberWallets.entries) {
+              final uid = entry.key;
+              final amt = entry.value;
+              if (amt > 0) {
+                final exists = allTx.any((tx) =>
+                    tx.bookletId == activeBooklet.id &&
+                    tx.paidByUid == uid &&
+                    tx.type == TransactionType.received &&
+                    tx.category.toLowerCase() == 'wallet');
+                if (!exists) {
+                  final memberName = household.members.where((m) => m.uid == uid).firstOrNull?.name ?? 'Member';
+                  ref.read(walletRepositoryProvider).ensureWalletTransaction(
+                        householdId: household.id,
+                        bookletId: activeBooklet.id,
+                        uid: uid,
+                        amount: amt,
+                        userName: memberName,
+                      );
+                }
+              }
+            }
           }
         }
       }
@@ -688,7 +723,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             selectedMonth: _selectedMonth,
             rangeStart: _rangeStart,
             rangeEnd: _rangeEnd,
-          );
+          ).where((t) => t.category.toLowerCase() != 'wallet').toList();
           final periodSplit = calculateGroupSplit(
             transactions: settlementTransactions,
             members: groupMembers,
@@ -753,13 +788,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 : AppStrings.tr(language, 'wallet');
           }
 
-          // Balance calculation based on Wallet
+          // Balance calculation based on Wallet & Passbook In/Out
           final double remainingBalance;
           final String balanceSubtext;
           final Color balanceColor;
 
+          final walletReceived = filtered
+              .where((t) => t.type == TransactionType.received && (t.category.toLowerCase() == 'wallet' || t.note?.toLowerCase() == 'wallet deposit'))
+              .fold(0.0, (acc, t) => acc + t.amount);
+          final nonWalletReceived = totalReceived - walletReceived;
+
           if (displayedWalletAmount > 0) {
-            remainingBalance = displayedWalletAmount - totalPaid + totalReceived;
+            remainingBalance = displayedWalletAmount + nonWalletReceived - totalPaid;
             if (isAllUsers) {
               balanceSubtext = AppStrings.tr(language, 'group_balance');
             } else if (_selectedUserFilter == 'me') {
@@ -771,9 +811,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
             }
             balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           } else {
-            remainingBalance = net;
-            balanceSubtext = net.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : (net > 0 ? '(Get)' : '(Owe)');
-            balanceColor = net > 0 ? Colors.green.shade700 : (net < -0.01 ? Colors.red.shade700 : onSurfaceVariant);
+            remainingBalance = totalReceived - totalPaid;
+            balanceSubtext = remainingBalance.abs() < 0.01 ? AppStrings.tr(language, 'no_due') : (remainingBalance > 0 ? '(Cr)' : '(Dr)');
+            balanceColor = remainingBalance >= 0 ? Colors.green.shade700 : Colors.red.shade700;
           }
 
           return Column(
@@ -814,15 +854,16 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                 ),
               // Category Budget Alert Banner (shows if any category is >=80% or exceeded)
               BudgetAlertCard(transactions: filtered),
-              // Header Row
+              // Header Row (Bank Passbook Style)
               Container(
                 color: Theme.of(context).colorScheme.primaryContainer,
                 padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(flex: 4, child: Text(AppStrings.tr(language, 'notes_category_header'), style: const TextStyle(fontWeight: FontWeight.bold))),
-                    Expanded(flex: 3, child: Text(AppStrings.tr(language, 'amount_header'), style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
-                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'by_header'), style: const TextStyle(fontWeight: FontWeight.bold), textAlign: TextAlign.right)),
+                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'date'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    Expanded(flex: 4, child: Text(AppStrings.tr(language, 'notes_category_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
+                    Expanded(flex: 3, child: Text(AppStrings.tr(language, 'amount_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
+                    Expanded(flex: 2, child: Text(AppStrings.tr(language, 'by_header'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), textAlign: TextAlign.right)),
                   ],
                 ),
               ),
@@ -911,6 +952,14 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                       bookletName: bName,
                                       transactionData: tx,
                                     );
+                                if (tx.category.toLowerCase() == 'wallet') {
+                                  await ref.read(walletRepositoryProvider).setWalletAmount(
+                                        tx.paidByUid,
+                                        0,
+                                        householdId: household.id,
+                                        bookletId: tx.bookletId,
+                                      );
+                                }
                                 if (context.mounted) {
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(content: Text(AppStrings.tr(language, 'tx_deleted'))),
@@ -926,6 +975,15 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                             },
                             child: InkWell(
                               onTap: () {
+                                if (tx.category.toLowerCase() == 'wallet') {
+                                  _showWalletDialog(
+                                    currentAmount: tx.amount,
+                                    uid: tx.paidByUid,
+                                    activeBooklet: activeBooklet,
+                                    selectedUserFilter: tx.paidByUid,
+                                  );
+                                  return;
+                                }
                                 Navigator.push(
                                   context,
                                   MaterialPageRoute(
@@ -941,21 +999,50 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    // 1. Notes & Date with Emoji
+                                    // 1. Date Column (Bank Passbook Style)
+                                    Expanded(
+                                      flex: 2,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            DateFormat('dd MMM').format(tx.date),
+                                            style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                              color: Theme.of(context).colorScheme.onSurface,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Text(
+                                            DateFormat('hh:mm a').format(tx.date),
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    // 2. Notes & Category (Particulars)
                                     Expanded(
                                       flex: 4,
                                       child: Row(
                                         crossAxisAlignment: CrossAxisAlignment.center,
                                         children: [
                                           Container(
-                                            width: 34,
-                                            height: 34,
+                                            width: 32,
+                                            height: 32,
                                             alignment: Alignment.center,
                                             decoration: BoxDecoration(
                                               color: color.withValues(alpha: 0.1),
                                               borderRadius: BorderRadius.circular(8),
                                             ),
-                                            child: Text(getCategoryEmoji(titleText), style: const TextStyle(fontSize: 16)),
+                                            child: Text(
+                                              tx.category.toLowerCase() == 'wallet' ? '💰' : getCategoryEmoji(titleText),
+                                              style: const TextStyle(fontSize: 15),
+                                            ),
                                           ),
                                           const SizedBox(width: 8),
                                           Expanded(
@@ -964,80 +1051,109 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
                                                 Text(
-                                                  titleText,
+                                                  tx.category.toLowerCase() == 'wallet'
+                                                      ? AppStrings.tr(language, 'wallet_incoming')
+                                                      : titleText,
                                                   style: TextStyle(
-                                                    fontSize: 14,
+                                                    fontSize: 13,
                                                     fontWeight: FontWeight.w600,
                                                     color: Theme.of(context).colorScheme.onSurface,
                                                   ),
                                                   maxLines: 2,
                                                   overflow: TextOverflow.ellipsis,
                                                 ),
-                                                const SizedBox(height: 2),
-                                                Row(
-                                                  children: [
-                                                    Text(
-                                                      _dateFormat.format(tx.date),
+                                                if (tx.category.toLowerCase() == 'wallet') ...[
+                                                  const SizedBox(height: 2),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                    decoration: BoxDecoration(
+                                                      color: Colors.green.withValues(alpha: 0.12),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      AppStrings.tr(language, 'incoming_credit'),
                                                       style: TextStyle(
-                                                        fontSize: 11,
-                                                        color: onSurfaceVariant,
+                                                        fontSize: 9,
+                                                        fontWeight: FontWeight.bold,
+                                                        color: Colors.green.shade700,
                                                       ),
                                                     ),
-                                                    if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
-                                                      const SizedBox(width: 6),
-                                                      GestureDetector(
-                                                        onTap: () => ReceiptViewerDialog.show(
-                                                          context,
-                                                          receiptPath: tx.receiptUrl!,
-                                                          title: titleText,
-                                                          amountText: _currencyFormat.format(tx.amount),
-                                                        ),
-                                                        child: Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                                          decoration: BoxDecoration(
-                                                            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
-                                                            borderRadius: BorderRadius.circular(4),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              Icon(Icons.receipt_long, size: 10, color: Theme.of(context).colorScheme.primary),
-                                                              const SizedBox(width: 2),
-                                                              Text(
-                                                                'Receipt',
-                                                                style: TextStyle(
-                                                                  fontSize: 9,
-                                                                  fontWeight: FontWeight.bold,
-                                                                  color: Theme.of(context).colorScheme.primary,
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
+                                                  ),
+                                                ] else if (tx.receiptUrl != null && tx.receiptUrl!.isNotEmpty) ...[
+                                                  const SizedBox(height: 2),
+                                                  GestureDetector(
+                                                    onTap: () => ReceiptViewerDialog.show(
+                                                      context,
+                                                      receiptPath: tx.receiptUrl!,
+                                                      title: titleText,
+                                                      amountText: _currencyFormat.format(tx.amount),
+                                                    ),
+                                                    child: Container(
+                                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                      decoration: BoxDecoration(
+                                                        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.15),
+                                                        borderRadius: BorderRadius.circular(4),
                                                       ),
-                                                    ],
-                                                  ],
-                                                ),
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          Icon(Icons.receipt_long, size: 10, color: Theme.of(context).colorScheme.primary),
+                                                          const SizedBox(width: 2),
+                                                          Text(
+                                                            'Receipt',
+                                                            style: TextStyle(
+                                                              fontSize: 9,
+                                                              fontWeight: FontWeight.bold,
+                                                              color: Theme.of(context).colorScheme.primary,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ],
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // 2. Amount
+                                    // 3. Amount (Passbook Style: +Cr in Green, -Dr in Red)
                                     Expanded(
                                       flex: 3,
-                                      child: Text(
-                                        _currencyFormat.format(tx.amount),
-                                        style: TextStyle(
-                                          color: color,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14,
-                                        ),
-                                        textAlign: TextAlign.right,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            '${isPaid ? '-' : '+'} ${_currencyFormat.format(tx.amount)}',
+                                            style: TextStyle(
+                                              color: color,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 13,
+                                            ),
+                                            textAlign: TextAlign.right,
+                                          ),
+                                          const SizedBox(height: 1),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0.5),
+                                            decoration: BoxDecoration(
+                                              color: color.withValues(alpha: 0.1),
+                                              borderRadius: BorderRadius.circular(3),
+                                            ),
+                                            child: Text(
+                                              isPaid ? 'DR' : 'CR',
+                                              style: TextStyle(
+                                                color: color,
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 9,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    // 3. By
+                                    // 4. By Column
                                     Expanded(
                                       flex: 2,
                                       child: Text(
@@ -1048,6 +1164,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
                                           fontWeight: isMe ? FontWeight.w600 : FontWeight.normal,
                                           color: isMe ? Theme.of(context).colorScheme.primary : Theme.of(context).colorScheme.onSurface,
                                         ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ),
                                   ],
@@ -1385,11 +1502,14 @@ class _DashboardWalletDialogState extends ConsumerState<_DashboardWalletDialog> 
       final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
       try {
+        final household = ref.read(currentHouseholdProvider).asData?.value;
+        final targetMemberName = household?.members.where((m) => m.uid == _targetUid).firstOrNull?.name ?? 'Member';
         await ref.read(walletRepositoryProvider).setWalletAmount(
               _targetUid,
               parsed,
               householdId: widget.householdId,
               bookletId: _selectedBookletId,
+              userName: targetMemberName,
             );
         final bookletName = currentBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(

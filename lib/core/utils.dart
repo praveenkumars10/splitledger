@@ -21,6 +21,7 @@ String getCategoryEmoji(String text) {
   if (lower.contains('shop') || lower.contains('cloth') || lower.contains('dress') || lower.contains('amazon') || lower.contains('flipkart')) return '🛍️';
   if (lower.contains('med') || lower.contains('doctor') || lower.contains('pharmacy') || lower.contains('hospital') || lower.contains('tablet') || lower.contains('clinic')) return '💊';
   if (lower.contains('movie') || lower.contains('game') || lower.contains('ott') || lower.contains('netflix') || lower.contains('entertainment')) return '🎬';
+  if (lower.contains('wallet') || lower.contains('deposit')) return '💰';
   if (lower.contains('salary') || lower.contains('income') || lower.contains('bonus') || lower.contains('settle') || lower.contains('cash')) return '💵';
   return '📝';
 }

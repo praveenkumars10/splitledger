@@ -168,6 +168,27 @@ class BookletRepository {
     batch.update(_firestore.collection('households').doc(householdId), {
       'activeBookletId': booklet.id,
     });
+
+    if (openingBalance > 0 && createdByUid.isNotEmpty) {
+      final txRef = _firestore
+          .collection('households')
+          .doc(householdId)
+          .collection('transactions')
+          .doc();
+
+      batch.set(txRef, {
+        'amount': openingBalance,
+        'category': 'wallet',
+        'paidByUid': createdByUid,
+        'paidByName': createdByName,
+        'note': 'Wallet Deposit',
+        'type': 'received',
+        'date': Timestamp.fromDate(startDate),
+        'createdAt': Timestamp.now(),
+        'bookletId': booklet.id,
+      });
+    }
+
     await batch.commit();
 
     if (openingBalance > 0 && createdByUid.isNotEmpty) {

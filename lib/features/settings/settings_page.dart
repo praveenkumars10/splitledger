@@ -866,11 +866,14 @@ class _SettingsWalletDialogState extends ConsumerState<_SettingsWalletDialog> {
       final messenger = ScaffoldMessenger.of(context);
       Navigator.of(context).pop();
       try {
+        final household = ref.read(currentHouseholdProvider).asData?.value;
+        final targetMemberName = household?.members.where((m) => m.uid == widget.uid).firstOrNull?.name ?? 'Member';
         await ref.read(walletRepositoryProvider).setWalletAmount(
               widget.uid,
               parsed,
               householdId: widget.householdId,
               bookletId: _selectedBookletId,
+              userName: targetMemberName,
             );
         final bookletName = currentBooklet?.name ?? AppStrings.tr(language, 'wallet');
         messenger.showSnackBar(
