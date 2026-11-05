@@ -22,26 +22,30 @@ class SelectedBookletFilterNotifier extends Notifier<String?> {
   @override
   String? build() => null;
 
-  void setFilter(String? value) => state = value;
+  void setFilter(String? value) {
+    if (value == 'ALL') {
+      state = null; // 'ALL' removed, reset to active booklet
+    } else {
+      state = value;
+    }
+  }
 }
 
-/// Locally selected booklet filter override ('ALL', null for active, or a specific bookletId).
+/// Locally selected booklet filter override (null for active, or a specific bookletId).
 final selectedBookletFilterProvider = NotifierProvider<SelectedBookletFilterNotifier, String?>(() {
   return SelectedBookletFilterNotifier();
 });
 
 /// Resolves the current active or selected BookletModel.
-/// Returns null if 'ALL' is selected.
 final activeBookletProvider = Provider<BookletModel?>((ref) {
   final filter = ref.watch(selectedBookletFilterProvider);
-  if (filter == 'ALL') return null;
 
   final booklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
   final household = ref.watch(currentHouseholdProvider).asData?.value;
   final preferences = ref.watch(appPreferencesProvider);
 
   // 1. If explicit specific ID selected
-  if (filter != null && filter.isNotEmpty) {
+  if (filter != null && filter.isNotEmpty && filter != 'ALL') {
     for (final b in booklets) {
       if (b.id == filter) return b;
     }
@@ -78,14 +82,8 @@ final activeBookletProvider = Provider<BookletModel?>((ref) {
 });
 
 /// Returns all transactions belonging to the currently active or selected booklet.
-/// If 'ALL' is selected, returns all household transactions.
 final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref) {
   final allTx = ref.watch(currentTransactionsProvider).asData?.value ?? [];
-  final filter = ref.watch(selectedBookletFilterProvider);
-  if (filter == 'ALL') {
-    return allTx;
-  }
-
   final activeBooklet = ref.watch(activeBookletProvider);
   if (activeBooklet == null) return allTx;
 
@@ -94,8 +92,9 @@ final activeBookletTransactionsProvider = Provider<List<TransactionModel>>((ref)
 
   return allTx.where((tx) {
     if (tx.bookletId == activeBooklet.id) return true;
-    // Allow legacy / untagged transactions in default or only booklet
-    if (tx.bookletId == null && isDefaultOrOnly) return true;
+    // Allow legacy / untagged transactions or if single cashbook active
+    if (tx.bookletId == null) return true;
+    if (isDefaultOrOnly) return true;
     return false;
   }).toList();
 });
@@ -392,5 +391,42 @@ class BookletRepository {
     if (opCount > 0) {
       await batch.commit();
     }
+  }
+
+  /// Transfers/migrates all household transactions to a specific target booklet.
+  Future<int> transferAllTransactionsToBooklet({
+    required String householdId,
+    required String targetBookletId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('households')
+        .doc(householdId)
+        .collection('transactions')
+        .get();
+
+    WriteBatch batch = _firestore.batch();
+    int transferredCount = 0;
+    int batchOps = 0;
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final currentBookletId = data['bookletId'];
+      if (currentBookletId != targetBookletId) {
+        batch.update(doc.reference, {'bookletId': targetBookletId});
+        transferredCount++;
+        batchOps++;
+        if (batchOps >= 400) {
+          await batch.commit();
+          batch = _firestore.batch();
+          batchOps = 0;
+        }
+      }
+    }
+
+    if (batchOps > 0) {
+      await batch.commit();
+    }
+
+    return transferredCount;
   }
 }

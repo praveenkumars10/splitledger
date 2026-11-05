@@ -18,12 +18,8 @@ class BookletSelectorBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final language = ref.watch(languageControllerProvider);
     final activeBooklet = ref.watch(activeBookletProvider);
-    final filter = ref.watch(selectedBookletFilterProvider);
-    final isAll = filter == 'ALL';
 
-    final label = isAll
-        ? AppStrings.tr(language, 'all_booklets')
-        : (activeBooklet?.name ?? AppStrings.tr(language, 'booklet'));
+    final label = activeBooklet?.name ?? AppStrings.tr(language, 'booklet');
 
     return InkWell(
       borderRadius: BorderRadius.circular(20),
@@ -42,7 +38,7 @@ class BookletSelectorBar extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isAll ? Icons.all_inbox_rounded : Icons.menu_book_rounded,
+              Icons.menu_book_rounded,
               size: compact ? 15 : 18,
               color: Theme.of(context).colorScheme.primary,
             ),
@@ -60,7 +56,7 @@ class BookletSelectorBar extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-            if (activeBooklet?.isClosed == true && !isAll) ...[
+            if (activeBooklet?.isClosed == true) ...[
               const SizedBox(width: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -104,7 +100,6 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
     final language = ref.watch(languageControllerProvider);
     final bookletsAsync = ref.watch(bookletsStreamProvider);
     final activeBooklet = ref.watch(activeBookletProvider);
-    final filter = ref.watch(selectedBookletFilterProvider);
     final dateFormat = DateFormat('dd MMM yyyy');
 
     return Container(
@@ -157,29 +152,6 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                   return ListView(
                     shrinkWrap: true,
                     children: [
-                      // All Booklets Option
-                      ListTile(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        selected: filter == 'ALL',
-                        selectedTileColor: Theme.of(context).colorScheme.primaryContainer.withValues(alpha: 0.3),
-                        leading: CircleAvatar(
-                          backgroundColor: Colors.blueGrey.withValues(alpha: 0.15),
-                          child: const Icon(Icons.all_inbox_rounded, color: Colors.blueGrey),
-                        ),
-                        title: Text(
-                          AppStrings.tr(language, 'all_booklets'),
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        subtitle: const Text('View and split all household transactions'),
-                        trailing: filter == 'ALL'
-                            ? const Icon(Icons.check_circle, color: Colors.green)
-                            : null,
-                        onTap: () {
-                          ref.read(selectedBookletFilterProvider.notifier).setFilter('ALL');
-                          Navigator.of(context).pop();
-                        },
-                      ),
-                      const SizedBox(height: 6),
                       if (booklets.isEmpty)
                         Padding(
                           padding: const EdgeInsets.all(16.0),
@@ -192,7 +164,7 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                           ),
                         ),
                       ...booklets.map((booklet) {
-                        final isSelected = filter != 'ALL' && activeBooklet?.id == booklet.id;
+                        final isSelected = activeBooklet?.id == booklet.id;
                         return Container(
                           margin: const EdgeInsets.only(bottom: 6),
                           decoration: BoxDecoration(
@@ -260,7 +232,46 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   tooltip: 'Options',
                                   onSelected: (action) async {
-                                    if (action == 'toggle_close') {
+                                    if (action == 'transfer_all') {
+                                      final household = ref.read(currentHouseholdProvider).asData?.value;
+                                      if (household != null) {
+                                        final confirmed = await showDialog<bool>(
+                                          context: context,
+                                          builder: (ctx) => AlertDialog(
+                                            title: Text(AppStrings.tr(language, 'transfer_all_transactions_here')),
+                                            content: Text('${AppStrings.tr(language, 'transfer_all_confirm')} "${booklet.name}"?'),
+                                            actions: [
+                                              TextButton(
+                                                onPressed: () => Navigator.pop(ctx, false),
+                                                child: Text(AppStrings.tr(language, 'cancel')),
+                                              ),
+                                              FilledButton(
+                                                onPressed: () => Navigator.pop(ctx, true),
+                                                child: Text(AppStrings.tr(language, 'save')),
+                                              ),
+                                            ],
+                                          ),
+                                        );
+                                        if (confirmed == true && context.mounted) {
+                                          final count = await ref.read(bookletRepositoryProvider).transferAllTransactionsToBooklet(
+                                            householdId: household.id,
+                                            targetBookletId: booklet.id,
+                                          );
+                                          ref.read(selectedBookletFilterProvider.notifier).setFilter(booklet.id);
+                                          await ref.read(bookletRepositoryProvider).setActiveBooklet(household.id, booklet.id);
+                                          await ref.read(appPreferencesProvider.notifier).setActiveBookletId(booklet.id);
+                                          if (context.mounted) {
+                                            Navigator.of(context).pop();
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              SnackBar(
+                                                content: Text('$count ${AppStrings.tr(language, 'transactions_transferred')} "${booklet.name}"'),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      }
+                                    } else if (action == 'toggle_close') {
                                       final household = ref.read(currentHouseholdProvider).asData?.value;
                                       if (household != null) {
                                         if (booklet.isClosed) {
@@ -284,6 +295,16 @@ class _BookletSwitchBottomSheet extends ConsumerWidget {
                                     }
                                   },
                                   itemBuilder: (ctx) => [
+                                    PopupMenuItem(
+                                      value: 'transfer_all',
+                                      child: Row(
+                                        children: [
+                                          const Icon(Icons.drive_file_move_outlined, color: Colors.blue, size: 18),
+                                          const SizedBox(width: 8),
+                                          Text(AppStrings.tr(language, 'transfer_all_transactions_here')),
+                                        ],
+                                      ),
+                                    ),
                                     PopupMenuItem(
                                       value: 'toggle_close',
                                       child: Row(

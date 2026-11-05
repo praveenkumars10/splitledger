@@ -183,8 +183,6 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final household = ref.watch(currentHouseholdProvider).asData?.value;
-    final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
-    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
     final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
     final language = ref.watch(languageControllerProvider);
     final preferences = ref.watch(appPreferencesProvider);
@@ -285,11 +283,7 @@ class _ReportsPageState extends ConsumerState<ReportsPage> {
 
                 // Daily Budget Card
                 DailyBudgetCard(
-                  walletAmount: activeBooklet != null
-                      ? activeBooklet.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets)
-                      : (allBooklets.isNotEmpty
-                          ? allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets))
-                          : walletAmount),
+                  walletAmount: activeBooklet?.getMemberWallet(currentUser.uid, userBookletWallets: userBookletWallets) ?? 0.0,
                   userTotalSpend: userSpend,
                   cycleStartDay: cycleStartDay,
                 ),

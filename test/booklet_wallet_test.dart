@@ -245,6 +245,39 @@ void main() {
       expect(booklet.getMemberWallet('user_1', userBookletWallets: userBookletWallets), 1250.0);
       expect(booklet.getTotalWalletAmount(userBookletWallets: userBookletWallets, currentUid: 'user_1'), 1250.0);
     });
+
+    test('Transactions transferred to target booklet all receive target bookletId', () {
+      final txList = [
+        TransactionModel(
+          id: 'tx_1',
+          amount: 500.0,
+          category: 'Food',
+          paidByUid: 'user_1',
+          paidByName: 'User 1',
+          date: DateTime.now(),
+          createdAt: DateTime.now(),
+          bookletId: 'old_booklet_1',
+        ),
+        TransactionModel(
+          id: 'tx_2',
+          amount: 1200.0,
+          category: 'Shopping',
+          paidByUid: 'user_2',
+          paidByName: 'User 2',
+          date: DateTime.now(),
+          createdAt: DateTime.now(),
+          bookletId: null, // untagged legacy
+        ),
+      ];
+
+      const targetBookletId = 'target_booklet';
+      final transferred = txList.map((tx) => tx.copyWith(bookletId: targetBookletId)).toList();
+
+      for (final tx in transferred) {
+        expect(tx.bookletId, targetBookletId);
+      }
+      expect(transferred.length, 2);
+    });
   });
 }
 

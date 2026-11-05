@@ -49,6 +49,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   final _currencyFormat = NumberFormat.currency(locale: 'en_IN', symbol: '₹');
   final _monthFormat = DateFormat('MMM yyyy');
   final _dateFormat = DateFormat('dd MMM, hh:mm a');
+  bool _didAutoConsolidate = false;
 
   bool get _isMonthlyFilter => _selectedTimeFilter == 'Monthly';
   bool get _hasActiveFilters => _keyword != null || _rangeStart != null || _minAmount != null || _maxAmount != null;
@@ -156,9 +157,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   Widget build(BuildContext context) {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
-    final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
     final activeBooklet = ref.watch(activeBookletProvider);
-    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
     final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
     final transactionsAsync = ref.watch(currentTransactionsProvider);
     final language = ref.watch(languageControllerProvider);
@@ -175,6 +174,18 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     }
 
     final groupMembers = household?.members.map((m) => (uid: m.uid, name: shortName(m.name))).toList() ?? [];
+
+    if (!_didAutoConsolidate && household != null && activeBooklet != null) {
+      _didAutoConsolidate = true;
+      Future.microtask(() async {
+        try {
+          await ref.read(bookletRepositoryProvider).transferAllTransactionsToBooklet(
+                householdId: household.id,
+                targetBookletId: activeBooklet.id,
+              );
+        } catch (_) {}
+      });
+    }
 
     return Scaffold(
       drawer: Drawer(
@@ -196,17 +207,11 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
               title: Text(AppStrings.tr(language, 'wallet')),
               subtitle: Text(
-                activeBooklet != null
-                    ? (activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) > 0
-                        ? '${activeBooklet.name}: ${_currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
-                        : '${activeBooklet.name}: ${AppStrings.tr(language, 'wallet_not_set')}')
-                    : (allBooklets.isNotEmpty
-                        ? 'Total: ${_currencyFormat.format(allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets)))}'
-                        : (walletAmount > 0
-                            ? _currencyFormat.format(walletAmount)
-                            : AppStrings.tr(language, 'wallet_not_set'))),
+                (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
+                    ? '${activeBooklet!.name}: ${_currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
+                    : '${activeBooklet?.name ?? 'Wallet'}: ${AppStrings.tr(language, 'wallet_not_set')}',
                 style: TextStyle(
-                  color: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0 || (activeBooklet == null && allBooklets.isNotEmpty)
+                  color: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
                       ? Theme.of(context).colorScheme.onSurface
                       : onSurfaceVariant,
                   fontWeight: FontWeight.bold,
@@ -698,54 +703,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
             }
           } else {
-            // 'ALL' BOOKLETS VIEW: Combine all booklets' wallets for the selected user/group
-            if (allBooklets.isNotEmpty) {
-              if (isAllUsers) {
-                displayedWalletAmount = allBooklets.fold(
-                  0.0,
-                  (acc, b) => acc + b.getTotalWalletAmount(
-                    userBookletWallets: userBookletWallets,
-                    currentUid: currentUser.uid,
-                  ),
-                );
-                walletCardTitle = AppStrings.tr(language, 'total_wallet');
-              } else if (_selectedUserFilter == 'me') {
-                displayedWalletAmount = allBooklets.fold(
-                  0.0,
-                  (acc, b) => acc + b.getMemberWallet(
-                    currentUser.uid,
-                    userBookletWallets: userBookletWallets,
-                  ),
-                );
-                walletCardTitle = AppStrings.tr(language, 'your_wallet');
-              } else if (_selectedUserFilter == 'group' && partner != null) {
-                final partnerUid = partner.uid;
-                displayedWalletAmount = allBooklets.fold(
-                  0.0,
-                  (acc, b) => acc + b.getMemberWallet(
-                    partnerUid,
-                    userBookletWallets: userBookletWallets,
-                  ),
-                );
-                walletCardTitle = "${shortName(partner.name)}'s ${AppStrings.tr(language, 'wallet')}";
-              } else {
-                displayedWalletAmount = allBooklets.fold(
-                  0.0,
-                  (acc, b) => acc + b.getMemberWallet(
-                    _selectedUserFilter,
-                    userBookletWallets: userBookletWallets,
-                  ),
-                );
-                final member = household?.members.where((m) => m.uid == _selectedUserFilter).firstOrNull;
-                final name = shortName(member?.name ?? 'Member');
-                walletCardTitle = "$name's ${AppStrings.tr(language, 'wallet')}";
-              }
-            } else {
-              displayedWalletAmount = 0.0;
-              walletCardTitle = isAllUsers
-                  ? AppStrings.tr(language, 'total_wallet')
-                  : AppStrings.tr(language, 'wallet');
-            }
+            displayedWalletAmount = 0.0;
+            walletCardTitle = isAllUsers
+                ? AppStrings.tr(language, 'total_wallet')
+                : AppStrings.tr(language, 'wallet');
           }
 
           // Balance calculation based on Wallet

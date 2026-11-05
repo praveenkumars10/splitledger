@@ -184,7 +184,6 @@ class SettingsPage extends ConsumerWidget {
     final household = ref.watch(currentHouseholdProvider).asData?.value;
     final currentUser = ref.watch(authStateChangesProvider).asData?.value;
     final walletAmount = ref.watch(currentWalletAmountProvider).asData?.value ?? 0.0;
-    final allBooklets = ref.watch(bookletsStreamProvider).asData?.value ?? [];
     final userBookletWallets = ref.watch(userBookletWalletsProvider).asData?.value ?? {};
     final transactions = ref.watch(currentTransactionsProvider).asData?.value ?? [];
     final themeSettings = ref.watch(themeControllerProvider);
@@ -465,15 +464,11 @@ class SettingsPage extends ConsumerWidget {
             leading: Icon(Icons.account_balance_wallet, color: Theme.of(context).colorScheme.primary),
             title: Text(AppStrings.tr(language, 'wallet_balance')),
             subtitle: Text(
-              activeBooklet != null
-                  ? (activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) > 0
-                      ? '${activeBooklet.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
-                      : '${activeBooklet.name}: ${AppStrings.tr(language, 'wallet_not_set')}')
-                  : (allBooklets.isNotEmpty
-                      ? 'Total: ${currencyFormat.format(allBooklets.fold(0.0, (acc, b) => acc + b.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets)))}'
-                      : (walletAmount > 0 ? currencyFormat.format(walletAmount) : AppStrings.tr(language, 'wallet_not_set'))),
+              (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
+                  ? '${activeBooklet!.name}: ${currencyFormat.format(activeBooklet.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets))}'
+                  : '${activeBooklet?.name ?? 'Wallet'}: ${AppStrings.tr(language, 'wallet_not_set')}',
               style: TextStyle(
-                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0 || (activeBooklet == null && allBooklets.isNotEmpty)
+                fontWeight: (activeBooklet?.getMemberWallet(currentUser?.uid ?? '', userBookletWallets: userBookletWallets) ?? 0) > 0
                     ? FontWeight.bold
                     : FontWeight.normal,
               ),
